@@ -1,4 +1,6 @@
 import { StyleSheet, Text, View,TouchableWithoutFeedback,TouchableOpacity, SafeAreaView, Image } from "react-native";
+import  json  from "react/jsx-runtime";
+
 
 export default function App() {  
   return (
