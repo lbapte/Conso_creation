@@ -1,70 +1,108 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { CameraView, CameraType, BarcodeScanningResult } from 'expo-camera';
+import {setupDatabase, insertBarcode, getBarcodes} from '../database';
+import { useNavigation } from '@react-navigation/native';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import ScanIndicator from "../assets/svg/HG.svgx";
 
-export default function HomeScreen() {
+setupDatabase();
+
+export default function Scanner() {
+  const [scanned, setScanned] = useState(false);
+  const [scannedCode, setScannedCode] = useState<string | null>(null); // État pour le code scanné
+
+  const navigation = useNavigation();
+
+  const handleBarCodeScanned = ({ data }: BarcodeScanningResult) => {
+    setScanned(true);
+    setScannedCode(data); // Mettre à jour avec le code scanné
+    insertBarcode(data);
+    setTimeout(() => setScanned(false), 2000); // Mettre en pause le scan au bout de 2 secondes
+    navigation.navigate("historique");
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <SafeAreaView style={styles.container}>
+      <CameraView
+        style={StyleSheet.absoluteFillObject}
+        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+      />      
+      {scannedCode && (
+        <Text style={styles.codeText}>Code scanné : {scannedCode}</Text>
+      )}
+      <SafeAreaView style={styles.containerTwo}>
+        <View style={styles.indicator}>
+          <ScanIndicator width={30} height={30} fill={scanned ? "green" : "red"} />
+        </View>
+        <Svg style={styles.indicator2}>
+          <Circle cx="10" cy="10" r="10" fill={scanned ? "green" : "red"} />
+        </Svg>
+        <Svg style={styles.indicator3}>
+          <Circle cx="10" cy="10" r="10" fill={scanned ? "green" : "red"} />
+        </Svg>
+        <Svg style={styles.indicator4}>
+          <Circle cx="10" cy="10" r="10" fill={scanned ? "green" : "red"} />
+        </Svg>
+      </SafeAreaView>
+
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+
+  containerTwo: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignContent: 'space-between',
+    padding: 20,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  codeText: {
     position: 'absolute',
+    bottom: 50,
+    fontSize: 18,
+    color: 'black',
+    backgroundColor: 'white',
+    padding: 8,
+    borderRadius: 4,
+  },
+  // Styles pour positionner les SVG dans les coins
+  scanIndicators: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignContent: 'space-between',
+    padding: 20,
+  },
+  indicator: {
+    width: 50,
+    height: 50,
+  },
+  indicator2: {
+    width: 20,
+    height: 100,
+    right:10,
+  },
+  indicator3: {
+    width: 300,
+    height: 20,
+    bottom:20,
+  },
+  indicator4: {
+    width: 20,
+    height: 20,
+    right:10,
   },
 });
+
