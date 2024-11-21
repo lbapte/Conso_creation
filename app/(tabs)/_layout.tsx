@@ -1,12 +1,13 @@
 import { Tabs } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { SafeAreaView,View, StyleSheet } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { TabBarIcon } from '@/components/navigation/TabBarIcon';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const router = useRouter();
 
   return (
     <LinearGradient
@@ -19,12 +20,22 @@ export default function TabLayout() {
             tabBarActiveTintColor: '#98FFBF',
             tabBarInactiveTintColor: 'white',
             tabBarStyle: {
-            display:"flex",
-            marginTop:5,
-            borderTopWidth: 0,
-            backgroundColor:"transparent",
+              display: "flex",
+              marginTop: 5,
+              borderTopWidth: 0,
+              backgroundColor: "transparent",
             },
-            headerShown: false,
+            headerShown: true, // Affiche un en-tête sur toutes les pages
+            headerTransparent: true,
+            headerTitle: '', // Pas de titre affiché dans l'en-tête
+            headerRight: () => (
+              <TouchableOpacity
+                onPress={() => router.push('../settings')}
+                style={styles.settingsButton}
+              >
+                <Ionicons name="settings-outline" size={24} color="#7377FD" />
+              </TouchableOpacity>
+            ),
           }}
         >
           <Tabs.Screen
@@ -32,7 +43,7 @@ export default function TabLayout() {
             options={{
               title: 'Explore',
               tabBarIcon: ({ color, focused }) => (
-                <TabBarIcon name={focused ? 'search' : 'search-outline'} color={color} size={35}/>
+                <TabBarIcon name={focused ? 'search' : 'search-outline'} color={color} size={35} />
               ),
             }}
           />
@@ -61,7 +72,6 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  gradientContainer: {
-    flex: 1,
-  },
+  gradientContainer: { flex: 1 },
+  settingsButton: { marginRight: 15 },
 });

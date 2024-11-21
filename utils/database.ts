@@ -1,5 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
+export default {};
+
 export const db = SQLite.openDatabaseSync('scans.db');
 
 export const setupDatabase = async () => {
