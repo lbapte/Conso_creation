@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { CameraView, CameraType, BarcodeScanningResult } from 'expo-camera';
-import {setupDatabase, insertBarcode, getBarcodes} from '../database';
+import {setupDatabase, insertBarcode, getBarcodes} from '../../utils/database';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import ScanIndicator from "../assets/svg/HG.svgx";
+
+//import ScanIndicator from "../assets/svg/HG.svgx";
 
 setupDatabase();
 
@@ -21,7 +22,7 @@ export default function Scanner() {
     setScannedCode(data); // Mettre à jour avec le code scanné
     insertBarcode(data);
     setTimeout(() => setScanned(false), 2000); // Mettre en pause le scan au bout de 2 secondes
-    navigation.navigate("historique");
+    //navigation.navigate("historique");
   };
 
   return (
@@ -35,7 +36,7 @@ export default function Scanner() {
       )}
       <SafeAreaView style={styles.containerTwo}>
         <View style={styles.indicator}>
-          <ScanIndicator width={30} height={30} fill={scanned ? "green" : "red"} />
+          <Circle cx="10" cy="10" r="10" fill={scanned ? "green" : "red"} />
         </View>
         <Svg style={styles.indicator2}>
           <Circle cx="10" cy="10" r="10" fill={scanned ? "green" : "red"} />
@@ -88,6 +89,7 @@ const styles = StyleSheet.create({
   indicator: {
     width: 50,
     height: 50,
+    left:10,
   },
   indicator2: {
     width: 20,

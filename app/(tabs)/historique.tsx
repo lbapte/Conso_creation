@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView,View, Text, FlatList, StyleSheet } from 'react-native';
-import { getBarcodes } from '../database'; // Assure-toi que le chemin est correct
+import { getBarcodes } from '../../utils/database'; // Assure-toi que le chemin est correct
 import { useFocusEffect } from '@react-navigation/native';
 
 export default function Historique() {
