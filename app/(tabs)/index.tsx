@@ -4,6 +4,10 @@ import { CameraView, CameraType, BarcodeScanningResult } from 'expo-camera';
 import {setupDatabase, insertBarcode, getBarcodes} from '../../utils/database';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Circle, Path } from 'react-native-svg';
+import HD from '../../assets/svg/haut_droit.svg';
+import HG from '../../assets/svg/haut-gauche.svg';
+import BG from '../../assets/svg/bas_gauche.svg';
+import BD from '../../assets/svg/bas_droit.svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 
@@ -36,16 +40,16 @@ export default function Scanner() {
       )}
       <SafeAreaView style={styles.containerTwo}>
         <View style={styles.indicator}>
-          <Circle cx="10" cy="10" r="10" fill={scanned ? "green" : "red"} />
+          <HG fill={scanned ? "green" : "red"} width={'40'} height={'40'} />
         </View>
         <Svg style={styles.indicator2}>
-          <Circle cx="10" cy="10" r="10" fill={scanned ? "green" : "red"} />
+          <HD fill={scanned ? "green" : "red"} width={'40'} height={'40'}/>
         </Svg>
         <Svg style={styles.indicator3}>
-          <Circle cx="10" cy="10" r="10" fill={scanned ? "green" : "red"} />
+          <BG fill={scanned ? "green" : "red"} width={'40'} height={'40'}/>
         </Svg>
         <Svg style={styles.indicator4}>
-          <Circle cx="10" cy="10" r="10" fill={scanned ? "green" : "red"} />
+          <BD fill={scanned ? "green" : "red"} width={'40'} height={'40'}/>
         </Svg>
       </SafeAreaView>
 
@@ -61,16 +65,19 @@ const styles = StyleSheet.create({
   },
 
   containerTwo: {
-    ...StyleSheet.absoluteFillObject,
+    //...StyleSheet.absoluteFillObject,
+    position:'absolute',
     justifyContent: 'space-between',
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignContent: 'space-between',
-    padding: 20,
+    padding :'20%',
+    //alignContent: 'space-between',
+    //backgroundColor:'red',
+    width:'100%',
+    height:'100%',
   },
   codeText: {
     position: 'absolute',
-    bottom: 50,
+    //bottom: 50,
     fontSize: 18,
     color: 'black',
     backgroundColor: 'white',
@@ -78,33 +85,38 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   // Styles pour positionner les SVG dans les coins
-  scanIndicators: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-between',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignContent: 'space-between',
-    padding: 20,
-  },
+  
   indicator: {
-    width: 50,
-    height: 50,
-    left:10,
+    opacity:'0.8',
+    position: 'absolute',
+    left: '7%',
+    top: '15%',
+    width: 40,
+    height: 40,
   },
   indicator2: {
-    width: 20,
-    height: 100,
-    right:10,
+    opacity:'0.8',
+    right: '7%',
+    top: '15%',
+    position: 'absolute',
+    width: 40,
+    height: 40,
   },
   indicator3: {
-    width: 300,
-    height: 20,
-    bottom:20,
+    opacity:'0.8',
+    position: 'absolute',
+    left: '7%',
+    bottom: '2%',
+    width: 40,
+    height: 40,
+  
   },
   indicator4: {
-    width: 20,
-    height: 20,
-    right:10,
+    opacity:'0.8',
+    position: 'absolute',
+    right: '7%',
+    bottom: '2%',
+    width: 40,
+    height: 40,
   },
 });
-

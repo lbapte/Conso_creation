@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView,View, Text, FlatList, StyleSheet } from 'react-native';
-import { getBarcodes } from '../../utils/database'; // Assure-toi que le chemin est correct
+import { getBarcodes, getData } from '../../utils/database';
 import { useFocusEffect } from '@react-navigation/native';
 
 export default function Historique() {
@@ -10,7 +10,8 @@ export default function Historique() {
     React.useCallback(() => {
       const fetchBarcodes = async () => {
         try {
-          const codes = await getBarcodes(); // Récupère les codes depuis la base de données
+          const codes = await getData();
+          console.log(getData()); // Récupère les codes depuis la base de données
           setBarcodes(codes); // Mettre à jour l'état avec les codes récupérés
         } catch (error) {
           console.error("Erreur lors du chargement des codes-barres :", error);
@@ -27,6 +28,8 @@ export default function Historique() {
       <Text style={styles.codeText}>{item}</Text>
     </View>
   );
+
+  console.log(barcodes);
 
   return (
     <SafeAreaView style={styles.container}>
