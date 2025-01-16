@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   // Styles pour positionner les SVG dans les coins
   
   indicator: {
-    opacity:'0.8',
+    opacity:0.8,
     position: 'absolute',
     left: '7%',
     top: '15%',
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     height: 40,
   },
   indicator2: {
-    opacity:'0.8',
+    opacity:0.8,
     right: '7%',
     top: '15%',
     position: 'absolute',
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     height: 40,
   },
   indicator3: {
-    opacity:'0.8',
+    opacity:0.8,
     position: 'absolute',
     left: '7%',
     bottom: '2%',
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   
   },
   indicator4: {
-    opacity:'0.8',
+    opacity:0.8,
     position: 'absolute',
     right: '7%',
     bottom: '2%',
