@@ -2,7 +2,7 @@ import { Tabs } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { TabBarIcon } from '@/components/navigation/TabBarIcon';
+import { TabBarIcon } from '../../components/navigation/TabBarIcon';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
