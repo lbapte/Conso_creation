@@ -3,20 +3,26 @@ import { View, TextInput, Button, StyleSheet, Text, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SQLite from 'expo-sqlite';
 import { handleDownloadData,caca } from '../utils/database';
-import { useAuth } from '../utils/connect';
 
 export default function SettingsScreen({  }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  /*const [jwt, setJwt] = useState('');
+  const [jwt, setJwt] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [companyName, setCompanyName] = useState('');*/
+  const [companyName, setCompanyName] = useState('');
 
   const API_URL = 'http:localhost:5000'; // Remplacez par l'URL de votre serveur
 
-  const { jwt,setJwt,companyName,setCompanyName,isLoggedIn,setIsLoggedIn,checkLoginStatus } = useAuth();
-
   useEffect(() => {
+    const checkLoginStatus = async () => {
+      const token = await AsyncStorage.getItem('jwt');
+      const storedCompanyName = await AsyncStorage.getItem('entreprise');
+      if (token) {
+        setJwt(token);
+        setCompanyName(storedCompanyName || '');
+        setIsLoggedIn(true);
+      }
+    };
     checkLoginStatus();
   }, []);
 

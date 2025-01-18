@@ -13,7 +13,7 @@ export const initializeDatabase = async () => {
 
 const API_URL = 'http:localhost:5000';
 //const db = SQLite.openDatabaseAsync('data.db');
-import { useAuth } from './connect';
+
 
 export const setupDatabase = async () => {
   (await db).runAsync(
@@ -35,36 +35,24 @@ export async function getBarcodes(): Promise<string[]> {
   return result;
 }
 
-export const getData = async () => {
-  try {
-    // Exécutez la requête pour récupérer les données
-    const result = (await db).execAsync('SELECT * FROM data;');
-
-    // Vérifiez si des résultats sont disponibles
-    if (result.length > 0 && result[0]?.columns && result[0]?.rows) {
-      const { columns, rows } = result[0];
-      console.log('Colonnes :', columns);
-      console.log('Lignes :', rows);
-
-      // Transformez les lignes en objets
-      const formattedData = rows.map((row: { [x: string]: any; }) => {
-        const obj = {};
-        columns.forEach((col: string | number, index: string | number) => {
-          obj[col] = row[index];
-        });
-        return obj;
-      });
-
-      return formattedData; // Retourne un tableau d'objets
-    } else {
-      console.warn('Aucun résultat ou problème avec la table.');
-      return [];
-    }
-  } catch (error) {
-    console.error('Erreur lors de la récupération des données :', error);
-    return [];
-  }
-};
+    export const fetchTableData = async () => {
+      const db = await initializeDatabase();
+      try {
+        const result = await db.getAllAsync('SELECT EAN FROM data;');
+        if (result.length > 0) {
+          // Extraire les valeurs de la clé "EAN"
+          const eanList = result.map(row => row.EAN); // Récupérer uniquement la valeur EAN
+          return eanList; // Retourner un tableau simple avec les EAN
+        } else {
+          console.error('Aucune donnée trouvée dans la colonne EAN.');
+          return [];
+        }
+      } catch (error) {
+        console.error('Erreur lors de la récupération des données EAN :', error);
+        return [];
+      }
+      
+    };
 
 export const handleDownloadData = async () => {
   const db = await initializeDatabase();

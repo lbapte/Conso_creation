@@ -1,48 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView,View, Text, FlatList, StyleSheet } from 'react-native';
-import { getData } from '../../utils/database'; // Assure-toi que le chemin est correct
-import { useFocusEffect } from '@react-navigation/native';
-import * as SQLite from 'expo-sqlite';
+import { View,SafeAreaView, Text, FlatList, StyleSheet } from 'react-native';
+import { fetchTableData } from '../../utils/database'; // Chemin vers votre fichier database.js
 
-export default function Historique() {
-const [barcodes, setBarcodes] = useState<string[]>([]); // Stockage des codes-barres
+const Historique = () => {
+  const [tableData, setTableData] = useState<string[]>([]); // Tableau pour stocker les données récupérées
 
-  useFocusEffect(
-    React.useCallback(() => {
-      const fetchBarcodes = async () => {
-        try {
-          
-          await getData(); // Récupère les codes depuis la base de données
-          
-          //setBarcodes(codes); // Mettre à jour l'état avec les codes récupérés
+  useEffect(() => {
+    const loadTableData = async () => {
+      const data = await fetchTableData();
+      setTableData(data); // Mettre à jour l'état avec les données récupérées
+    };
 
-        } catch (error) {
-          console.error("Erreur lors du chargement des codes-barres :", error);
-        }
-      };
+    loadTableData();
+  }, []);
 
-      fetchBarcodes();
-    }, []) // La dépendance vide signifie que l'effet sera appelé à chaque fois que le composant est mis au premier plan
-  );
-
-  // Composant d'affichage de chaque code-barre
+  // Rendu de chaque élément
   const renderItem = ({ item }: { item: string }) => (
     <View style={styles.item}>
-      <Text style={styles.codeText}>{item}</Text>
+      <Text style={styles.rowText}>{item}</Text>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Historique des Codes-Barres Scannés</Text>
+      <Text style={styles.title}>Historique des Données</Text>
       <FlatList
-        data={barcodes}
-        renderItem={renderItem}
-        keyExtractor={(item, index) => index.toString()}
+        data={tableData} // Passer les données récupérées
+        renderItem={renderItem} // Fonction de rendu pour chaque élément
+        keyExtractor={(item, index) => index.toString()} // Clé unique pour chaque élément
       />
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -53,15 +42,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 16,
     textAlign: 'center',
+    marginBottom: 16,
   },
   item: {
     padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#ccc',
   },
-  codeText: {
-    fontSize: 18,
+  rowText: {
+    fontSize: 16,
+    lineHeight: 22,
   },
 });
+
+export default Historique;
