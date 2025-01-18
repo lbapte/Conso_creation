@@ -2,7 +2,7 @@ import { Tabs } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { TabBarIcon } from '../../components/navigation/TabBarIcon';
+import { TabBarIcon } from '@/components/navigation/TabBarIcon';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -21,7 +21,8 @@ export default function TabLayout() {
             tabBarInactiveTintColor: 'white',
             tabBarStyle: {
               display: "flex",
-              marginTop: 5,
+              height:"10%",
+              marginTop: 15,
               borderTopWidth: 0,
               backgroundColor: "transparent",
             },
@@ -33,7 +34,7 @@ export default function TabLayout() {
                 onPress={() => router.push('../settings')}
                 style={styles.settingsButton}
               >
-                <Ionicons name="settings-outline" size={24} color="#7377FD" />
+                <Ionicons name="settings-outline" size={30} color="#7377FD" />
               </TouchableOpacity>
             ),
           }}
@@ -43,7 +44,7 @@ export default function TabLayout() {
             options={{
               title: 'Explore',
               tabBarIcon: ({ color, focused }) => (
-                <TabBarIcon name={focused ? 'search' : 'search-outline'} color={color} size={35} />
+                <TabBarIcon name={focused ? 'search' : 'search-outline'} color={color} size={35} height={45} />
               ),
             }}
           />
@@ -52,7 +53,7 @@ export default function TabLayout() {
             options={{
               title: 'Scan',
               tabBarIcon: ({ color, focused }) => (
-                <TabBarIcon name={focused ? 'scan' : 'scan-outline'} color={color} size={40} />
+                <TabBarIcon name={focused ? 'scan' : 'scan-outline'} color={color} size={40} height={55} width={50}/>
               ),
             }}
           />
@@ -61,7 +62,7 @@ export default function TabLayout() {
             options={{
               title: 'Historique',
               tabBarIcon: ({ color, focused }) => (
-                <TabBarIcon name={focused ? 'timer' : 'timer-outline'} color={color} size={35} />
+                <TabBarIcon name={focused ? 'timer' : 'timer-outline'} color={color} size={35} height={45} />
               ),
             }}
           />
@@ -72,6 +73,9 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  gradientContainer: { flex: 1 },
-  settingsButton: { marginRight: 15 },
+  gradientContainer: { 
+    flex: 1,
+    height: 100,
+   },
+  settingsButton: { marginRight: '15%' },
 });
