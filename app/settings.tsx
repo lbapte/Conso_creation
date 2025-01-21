@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, TextInput, Button, StyleSheet, Text, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SQLite from 'expo-sqlite';
-import { handleDownloadData,caca } from '../utils/database';
+import { handleDownloadData,loadingData } from '../utils/database';
 
 export default function SettingsScreen({  }) {
   const [username, setUsername] = useState('');
@@ -71,9 +71,9 @@ export default function SettingsScreen({  }) {
       {isLoggedIn ? (
         <View>
           <Text style={styles.welcomeText}>Bienvenue, {companyName} !</Text>
-          <Button title="Charger les données" onPress={handleDownloadData} />
+          <Button title="Charger les données" onPress={loadingData} />
           <Button title="Se déconnecter" onPress={handleLogout} />
-          <Button title="Voir données" onPress={caca} />
+          
         </View>
       ) : (
         <View>

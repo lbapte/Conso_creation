@@ -1,34 +1,54 @@
 import React, { useState, useEffect } from 'react';
-import { View,SafeAreaView, Text, FlatList, StyleSheet } from 'react-native';
+import { View,SafeAreaView, Text, FlatList, StyleSheet, Alert, Modal, TouchableOpacity } from 'react-native';
 import { fetchTableData } from '../../utils/database'; // Chemin vers votre fichier database.js
+import ModalPage from '../resultat';
 
 const Historique = () => {
-  const [tableData, setTableData] = useState<string[]>([]); // Tableau pour stocker les données récupérées
+  const [eanList, setEanList] = useState<string[]>([]);
+  const [selectedEan, setSelectedEan] = useState<string | null>(null);
+  const [isModalVisible, setModalVisible] = useState(false);
 
-  useEffect(() => {
-    const loadTableData = async () => {
-      const data = await fetchTableData();
-      setTableData(data); // Mettre à jour l'état avec les données récupérées
+  React.useEffect(() => {
+    const loadEans = async () => {
+      const eans = await fetchTableData();
+      setEanList(eans);
     };
 
-    loadTableData();
+    loadEans();
   }, []);
 
-  // Rendu de chaque élément
-  const renderItem = ({ item }: { item: string }) => (
-    <View style={styles.item}>
-      <Text style={styles.rowText}>{item}</Text>
-    </View>
-  );
+  const handleEanClick = (ean: string) => {
+    setSelectedEan(ean);
+    setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setSelectedEan(null);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Historique des Données</Text>
+      <Text style={styles.title}>Liste des EAN</Text>
       <FlatList
-        data={tableData} // Passer les données récupérées
-        renderItem={renderItem} // Fonction de rendu pour chaque élément
-        keyExtractor={(item, index) => index.toString()} // Clé unique pour chaque élément
+        data={eanList}
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={({ item }) => (
+          <TouchableOpacity onPress={() => handleEanClick(item)}>
+            <Text style={styles.item}>{item}</Text>
+          </TouchableOpacity>
+        )}
       />
+
+      {/* Modal */}
+      <Modal
+        visible={isModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeModal}
+      >
+        {selectedEan && <ModalPage barcode={selectedEan} onClose={closeModal} />}
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -42,17 +62,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    textAlign: 'center',
     marginBottom: 16,
   },
   item: {
+    fontSize: 16,
     padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#ccc',
-  },
-  rowText: {
-    fontSize: 16,
-    lineHeight: 22,
   },
 });
 
