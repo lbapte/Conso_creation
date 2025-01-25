@@ -153,39 +153,42 @@ export const loadingData = async () => {
 };
 
 /**
- * Fonction pour récupérer deux lignes en fonction des filtres
- * @param ean Code EAN
- * @param circuitFilter Filtre pour le circuit
- * @param periodeFilters Tableau avec deux périodes (période 1 et période 2)
- * @param columns Objet contenant les colonnes à récupérer
- * @returns Promesse avec les deux lignes de données
+ * Fonction pour récupérer les lignes en fonction des colonnes dynamiques et des filtres
+ * @param filters Objet contenant les filtres EAN, période, circuit
+ * @param columns Objet contenant les intitulés des colonnes pour chaque catégorie
+ * @returns Promesse avec les données récupérées
  */
-export const fetchDataByFilters = async (
-  ean: string,
-  circuitFilter: string,
-  periodeFilters: [string, string],
-  columns: { codeEAN: string[]; circuit: string[]; denominationProduit: string[]; periode: string[] }
+export const fetchDataByDynamicColumns = async (
+  filters: { ean: string; periode: string; periodeComparaison: string; circuit: string },
+  columns: { codeEAN: string[]; circuit: string[]; periode: string[]; indicateur: string[] }
 ): Promise<any[]> => {
-  const { codeEAN, circuit, denominationProduit, periode } = columns;
+  //console.log(filters," changement ",columns);
   const db = await initializeDatabase();
-  // Construire la requête SQL
+  const { ean, periode, circuit } = filters;
+  const { codeEAN, circuit: circuitCols, periode: periodeCols, indicateur } = columns;
+
+  //console.log("ean",ean,"periode",periode,"circuit",circuit);
+  //console.log("circuits",circuitCols,"periode",periodeCols,"indicateurs",indicateur);
+
+  // Construire la requête SQL dynamique
   const query = `
-    SELECT ${[...denominationProduit, ...circuit, ...periode, ...codeEAN].join(', ')}
-    FROM my_table
-    WHERE ${codeEAN[0]} = ? AND ${circuit[0]} = ? AND (${periode[0]} = ? OR ${periode[0]} = ?)
+    SELECT ${[...indicateur].join(', ')}
+    FROM data
+    WHERE ${codeEAN[0]} = ? AND ${periodeCols[0]} = ? AND ${circuitCols[0]} = ?
   `;
 
-  return new Promise((resolve, reject) => {
-    db.exec(
-      [{ sql: query, args: [ean, circuitFilter, ...periodeFilters] }],
-      false,
-      (err, results) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(results[0]?.rows || []);
-        }
-      }
-    );
-  });
+ //console.log(query);
+ console.log("dans la fonction");
+
+  try {
+    // Exécution de la requête
+    const results = await db.getAllAsync(query, [ean, periode, circuit]);
+    console.log(results);
+
+    console.log('Requête traitée avec succès');
+    return results || []; // Retourne les résultats sous forme de tableau
+  } catch (error) {
+    console.error('Erreur lors de la récupération des données :', error);
+    throw error; // Propagation de l'erreur pour une gestion externe
+  }
 };

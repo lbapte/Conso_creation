@@ -11,6 +11,7 @@ const Historique = () => {
   React.useEffect(() => {
     const loadEans = async () => {
       const eans = await fetchTableData();
+      console.log("oui");
       setEanList(eans);
     };
 
