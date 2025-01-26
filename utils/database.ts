@@ -5,7 +5,7 @@ import { fetchColumnsByType } from './columnConfig';
 /*permets d'initialiser une instance de la base de données.
 Appeller la fonction permets de se connecter à une meme instance de la base 
 Si ce n'était pas le cas, les données seraient effacées d'une connexion à l'autre.*/
-let db;
+let db: SQLite.SQLiteDatabase;
 export const initializeDatabase = async () => {
   if (!db) {
     db = await SQLite.openDatabaseAsync('data.db');
@@ -40,7 +40,7 @@ export async function getBarcodes(): Promise<string[]> {
   export const fetchTableData = async () => {
     const db = await initializeDatabase();
     try {
-      const result = await db.getAllAsync('SELECT EAN FROM data LIMIT 100;');
+      const result = await db.getAllAsync('SELECT EAN FROM data LIMIT 20;');
       if (result.length > 0) {
         // Extraire les valeurs de la clé "EAN"
         const eanList = result.map(row => row.EAN); // Récupérer uniquement la valeur EAN
@@ -149,6 +149,7 @@ export const loadingData = async () => {
 
   handleDownloadData("TD_oui","data");
   handleDownloadData("Colonnes","segments");
+  //fetchColumnsByType();
 
 };
 
@@ -164,7 +165,7 @@ export const fetchDataByDynamicColumns = async (
 ): Promise<any[]> => {
   //console.log(filters," changement ",columns);
   const db = await initializeDatabase();
-  const { ean, periode, circuit } = filters;
+  const { ean, periode, periodeComparaison, circuit } = filters;
   const { codeEAN, circuit: circuitCols, periode: periodeCols, indicateur } = columns;
 
   //console.log("ean",ean,"periode",periode,"circuit",circuit);
@@ -178,17 +179,40 @@ export const fetchDataByDynamicColumns = async (
   `;
 
  //console.log(query);
- console.log("dans la fonction");
+ //console.log("dans la fonction");
 
   try {
     // Exécution de la requête
-    const results = await db.getAllAsync(query, [ean, periode, circuit]);
-    console.log(results);
+    const resultat1 = await db.getAllAsync(query, [ean, periode, circuit]);
+    const resultat2 = await db.getAllAsync(query, [ean, periodeComparaison, circuit]);
 
-    console.log('Requête traitée avec succès');
-    return results || []; // Retourne les résultats sous forme de tableau
+    const results=[resultat1,resultat2];
+    //console.log('Requête traitée avec succès');
+    return results; // Retourne les résultats sous forme de tableau
   } catch (error) {
     console.error('Erreur lors de la récupération des données :', error);
     throw error; // Propagation de l'erreur pour une gestion externe
+  }
+};
+
+export const fetchUniqueValues = async (column: string) => {
+  const db = await initializeDatabase();
+
+  // Requête pour récupérer les valeurs uniques
+  const query = `
+    SELECT DISTINCT ${column} 
+    FROM data
+    WHERE ${column} IS NOT NULL
+  `;
+
+  try {
+    const result = await db.getAllAsync(query);
+    //console.log(result);
+    //const rows = result.rows; // Tableau des lignes retournées
+    //return rows.map((row) => row[column]); // Retourne un tableau de valeurs uniques
+    return result;
+  } catch (error) {
+    console.error(`Erreur lors de la récupération des valeurs pour ${column}:`, error);
+    return [];
   }
 };

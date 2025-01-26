@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,Modal} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { codeEAN, circuit, periode, indicateur } from '../utils/columnConfig';
+import { codeEAN, circuit, periode, indicateur, valeurPeriodes, valeurcircuit } from '../utils/columnConfig';
 import { fetchDataByDynamicColumns } from '../utils/database';
 
 interface ModalPageProps {
@@ -11,14 +11,23 @@ interface ModalPageProps {
 
 const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 
+  console.log(valeurPeriodes,valeurcircuit);
+
+  const valeurPeriodesOptions = valeurPeriodes.map((item) => item[periode[0]]);
+  const valeurCircuitOptions = valeurcircuit.map((item) => item[circuit[0]]);
+  console.log(valeurPeriodesOptions,valeurCircuitOptions);
+
   const [expandedRef, setExpandedRef] = useState<number | null>(null); // État pour gérer la référence ouverte
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [currentFilter, setCurrentFilter] = useState<string | null>(null);
-  const [selectedPeriode, setSelectedPeriode] = useState<string>('Cumul Annuel Mobile');
-  const [selectedCircuit, setSelectedCircuit] = useState<string>('HYPERS Census');
-  const [selectedComparisonPeriode, setSelectedComparisonPeriode] = useState<string>('Cumul Annuel Mobile');
+  const [selectedPeriode, setSelectedPeriode] = useState<string>(valeurPeriodesOptions[0]);
+  const [selectedCircuit, setSelectedCircuit] = useState<string>(valeurCircuitOptions[0]);
+  const [selectedComparisonPeriode, setSelectedComparisonPeriode] = useState<string>(valeurPeriodesOptions[1]);
   const [data, setData] = useState<any[]>([]); // Données récupérées
   const [ean, setEAN] = useState<string>(barcode); // Exemple de code EAN
+  const [modalOptions, setModalOptions] = useState<string[]>([]);
+
+
 
   const references = [
     { id: 1, title: 'Dénomination produit + EAN', volume: 20, delta: -5, evolution: '-25%' },
@@ -32,33 +41,30 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 
   const openModal = (filterType: string) => {
     setCurrentFilter(filterType);
+
+    if (filterType === 'periode') setModalOptions(valeurPeriodesOptions);
+    if (filterType === 'circuit') setModalOptions(valeurCircuitOptions);
+    if (filterType === 'comparisonPeriode') setModalOptions(valeurPeriodesOptions);
+
     setModalVisible(true);
   };
 
+  // Sélectionner une valeur
   const handleSelect = (value: string) => {
     if (currentFilter === 'periode') setSelectedPeriode(value);
     if (currentFilter === 'circuit') setSelectedCircuit(value);
     if (currentFilter === 'comparisonPeriode') setSelectedComparisonPeriode(value);
-    setModalVisible(false);
-  };
 
-  const getModalOptions = () => {
-    if (currentFilter === 'periode') return periode;
-    if (currentFilter === 'circuit') return circuit;
-    if (currentFilter === 'comparisonPeriode') return periode;
-    return [];
+    setModalVisible(false);
   };
 
   const loadData = async () => {
     try {
-      console.log("non");
       const result = await fetchDataByDynamicColumns(
         { ean, periode: selectedPeriode, periodeComparaison :selectedComparisonPeriode, circuit: selectedCircuit },
         { codeEAN, circuit, periode, indicateur }
       );
-      console.log('Données chargées avec succès');
       setData(result); // Met à jour les données
-      console.log(data);
     } catch (error) {
       console.error('Erreur lors de la récupération des données :', error);
     }
@@ -66,74 +72,88 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 
   useEffect(() => {
     loadData(); // Appeler la fonction au chargement ou lors de modifications
-  }, []); // Dépendances pertinentes
+  }, [selectedPeriode, selectedCircuit, selectedComparisonPeriode]); // Dépendances pertinentes
+
+  
+  //console.log(data);
 
   return (
      <LinearGradient
      colors={['#454AD8', '#7579FF', '#F5F5F5']}
-     locations={[0, 0.4, 0.4]} // 40% dégradé, reste F5F5F5
+     locations={[0, 0.42, 0.42]} // 40% dégradé, reste F5F5F5
      start={{ x: 0, y: 0 }}
      end={{ x: 0, y: 1 }}
     style={styles.fond}
     >
     <SafeAreaView style={styles.safeArea}>
       {/* Zone 1 : Informations sur la référence scannée */}
+      {/* Bouton Fermer */}
+      <TouchableOpacity style={styles.closeButtonTop} onPress={onClose}>
+            <Text style={styles.closeButtonTextTop}>Fermer</Text>
+      </TouchableOpacity>
       <View style={styles.headerSection}>
         <Text style={styles.referenceTitle}>Dénomination produit Marque + EAN</Text>
 
         {/* Filtres (Période, Circuit, Période de comparaison) côte à côte */}
         <View style={styles.filterContainer}>
-            <TouchableOpacity
-              style={[styles.filterButton, { flex: 1 }]}
-              onPress={() => openModal('periode')}
-            >
-              <Text style={styles.filterText}>Période</Text>
-              <Text style={styles.filterValue}>{selectedPeriode}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.filterButton, { flex: 1 }]}
-              onPress={() => openModal('circuit')}
-            >
-              <Text style={styles.filterText}>Circuit</Text>
-              <Text style={styles.filterValue}>{selectedCircuit}</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterButton, { flex: 1 }]} // 25% pour Période
+            onPress={() => openModal('periode')}
+          >
+            <Text style={styles.filterText}>Période</Text>
+            <Text style={styles.filterValue}>{selectedPeriode || 'Choisir'}</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.filterButton, { flex: 2 }]}
-              onPress={() => openModal('comparisonPeriode')}
-            >
-              <Text style={styles.filterText}>Période de comparaison</Text>
-              <Text style={styles.filterValue}>{selectedComparisonPeriode}</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterButton, { flex: 1 }]} // 25% pour Circuit
+            onPress={() => openModal('circuit')}
+          >
+            <Text style={styles.filterText}>Circuit</Text>
+            <Text style={styles.filterValue}>{selectedCircuit || 'Choisir'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.filterButton, { flex: 2 }]} // 50% pour Période de comparaison
+            onPress={() => openModal('comparisonPeriode')}
+          >
+            <Text style={styles.filterText}>Période de comparaison</Text>
+            <Text style={styles.filterValue}>
+              {selectedComparisonPeriode || 'Choisir'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <Modal
-          transparent={true}
-          visible={modalVisible}
-          animationType="slide"
-          onRequestClose={() => setModalVisible(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Sélectionnez une valeur</Text>
-              {getModalOptions().map((item) => (
+      {/* Modale */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Sélectionnez une valeur</Text>
+            <FlatList
+              data={modalOptions}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
                 <TouchableOpacity
-                  key={item}
                   style={styles.modalOption}
                   onPress={() => handleSelect(item)}
                 >
                   <Text style={styles.modalOptionText}>{item}</Text>
                 </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.closeButtonText}>Fermer</Text>
-              </TouchableOpacity>
-            </View>
+              )}
+            />
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Fermer</Text>
+            </TouchableOpacity>
           </View>
-        </Modal>
+        </View>
+      </Modal>
 
         {/* Indicateurs */}
         <View style={styles.indicatorsWrapper}>
@@ -143,24 +163,23 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
               <View style={styles.indicatorTopSection}>
                 <Text style={styles.indicatorTitle}>{indicator}</Text>
                 <Text style={styles.indicatorValue}>
-                  {data.length > 0 ? data[0][indicator] || '-' : '-'}
+                  {data.length > 0 ? data[0][0][indicator] || '-' : '-'}
                 </Text>
               </View>
               <View style={styles.indicatorMiddleSection}>
                 <Text style={styles.indicatorSubTitle}>Écart</Text>
                 <Text style={styles.indicatorDelta}>
-                  {data.length > 1 ? data[1][indicator] - data[0][indicator] || '-' : '-'}
+                  {data?.[0]?.[0]?.[indicator] !== undefined && data?.[1]?.[0]?.[indicator] !== undefined
+                  ? (data[1][0][indicator] - data[0][0][indicator]).toFixed(0).toString()
+                  : '-'}
                 </Text>
               </View>
               <View style={styles.indicatorBottomSection}>
                 <Text style={styles.indicatorSubTitle}>Évolution</Text>
                 <Text style={styles.indicatorEvolution}>
-                  {data.length > 1
-                    ? (
-                        ((data[1][indicator] - data[0][indicator]) / data[0][indicator]) *
-                          100 || 0
-                      ).toFixed(1) + '%'
-                    : '-'}
+                {data?.[0]?.[0]?.[indicator] !== undefined && data?.[1]?.[0]?.[indicator] !== undefined
+                  ? ((data[1][0][indicator] - data[0][0][indicator])/data[0][0][indicator]*100).toFixed(1) + `%`
+                  : '-'}
                 </Text>
               </View>
             </View>
@@ -304,7 +323,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: 'white',
     marginBottom: 16,
-    marginTop:10,
+    //marginTop:10,
     //marginLeft:16,
     alignSelf:'center',
   },
@@ -437,7 +456,20 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#F5F5F5',
   },
-
+  closeButtonTop: {
+    padding: 4,
+    paddingLeft:8,
+    paddingRight:8,
+    backgroundColor: '#98FFBF',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginLeft: 8,
+  },
+  closeButtonTextTop: {
+    color: '#0C0F40',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
   
 });
 
