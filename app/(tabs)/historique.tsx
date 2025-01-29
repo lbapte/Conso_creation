@@ -3,6 +3,7 @@ import { View,SafeAreaView, Text, FlatList, StyleSheet, Alert, Modal, TouchableO
 import { fetchTableData } from '../../utils/database'; // Chemin vers votre fichier database.js
 import ModalPage from '../resultat';
 
+
 const Historique = () => {
   const [eanList, setEanList] = useState<string[]>([]);
   const [selectedEan, setSelectedEan] = useState<string | null>(null);
@@ -11,7 +12,6 @@ const Historique = () => {
   React.useEffect(() => {
     const loadEans = async () => {
       const eans = await fetchTableData();
-      console.log("oui");
       setEanList(eans);
     };
 
@@ -29,27 +29,32 @@ const Historique = () => {
   };
 
   return (
+  
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Liste des EAN</Text>
-      <FlatList
-        data={eanList}
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => handleEanClick(item)}>
-            <Text style={styles.item}>{item}</Text>
-          </TouchableOpacity>
-        )}
-      />
+      <View style={styles.Header}>
+        <Text style={styles.title}>Références scannées</Text>
+      </View>
+      <View style={styles.Body}>
+        <FlatList
+          data={eanList}
+          keyExtractor={(item, index) => index.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => handleEanClick(item)}>
+              <Text style={styles.item}>{item}</Text>
+            </TouchableOpacity>
+          )}
+        />
 
-      {/* Modal */}
-      <Modal
-        visible={isModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={closeModal}
-      >
-        {selectedEan && <ModalPage barcode={selectedEan} onClose={closeModal} />}
-      </Modal>
+        {/* Modal */}
+        <Modal
+          visible={isModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={closeModal}
+        >
+          {selectedEan && <ModalPage barcode={selectedEan} onClose={closeModal} />}
+        </Modal>
+      </View>
     </SafeAreaView>
   );
 };
@@ -58,12 +63,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
+  },
+  Fond:{
+    flex:1,
+  },
+  Header:{
+    flex:1,
+    backgroundColor:'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  Body:{
+    flex:8,
+    backgroundColor:'#fff',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    color:'#010A26',
   },
   item: {
     fontSize: 16,

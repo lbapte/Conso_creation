@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,Modal} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { codeEAN, circuit, periode, indicateur, valeurPeriodes, valeurcircuit } from '../utils/columnConfig';
-import { fetchDataByDynamicColumns } from '../utils/database';
+import { codeEAN, circuit, periode, indicateur, valeurPeriodes, valeurcircuit,segmentation,denominationProduit } from '../utils/columnConfig';
+import { fetchDataByDynamicColumns,fetchReferences, fetchFilteredColumnValue,fetchReferencesWithIndicators } from '../utils/database';
 
 interface ModalPageProps {
   barcode: string; // Code EAN transmis depuis la page Historique
@@ -11,12 +11,15 @@ interface ModalPageProps {
 
 const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 
-  console.log(valeurPeriodes,valeurcircuit);
+  //console.log(indicateur,segmentation);
 
   const valeurPeriodesOptions = valeurPeriodes.map((item) => item[periode[0]]);
   const valeurCircuitOptions = valeurcircuit.map((item) => item[circuit[0]]);
-  console.log(valeurPeriodesOptions,valeurCircuitOptions);
-
+  //console.log(valeurPeriodesOptions,valeurCircuitOptions);
+  const [referencesData, setReferencesData] = useState<any[][]>([[], []]);
+  const [sortBy, setSortBy] = useState<string | null>(indicateur[0]); // Valeur sélectionnée pour "Classer par"
+  const [order, ] = useState<'Croissant' | 'Décroissant'>('Croissant'); // Valeur pour l'ordre
+  const [filterValue, setFilterValue] = useState<string | null>(segmentation[0]); // Valeur sélectionnée pour "Filtrer"
   const [expandedRef, setExpandedRef] = useState<number | null>(null); // État pour gérer la référence ouverte
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [currentFilter, setCurrentFilter] = useState<string | null>(null);
@@ -26,18 +29,8 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const [data, setData] = useState<any[]>([]); // Données récupérées
   const [ean, setEAN] = useState<string>(barcode); // Exemple de code EAN
   const [modalOptions, setModalOptions] = useState<string[]>([]);
-
-
-
-  const references = [
-    { id: 1, title: 'Dénomination produit + EAN', volume: 20, delta: -5, evolution: '-25%' },
-    { id: 2, title: 'Dénomination produit + EAN', volume: 18, delta: -2, evolution: '-10%' },
-    { id: 3, title: 'Dénomination produit + EAN', volume: 22, delta: -3, evolution: '-15%' },
-  ];
-
-  const toggleReference = (id: number) => {
-    setExpandedRef(expandedRef === id ? null : id);
-  };
+  const [filteredColumnValue, setFilteredColumnValue] = useState<string | null>(null); // Valeur de la colonne filtrée pour la référence scannée
+  const [indicatorsData, setIndicatorsData] = useState<any[]>([]); 
 
   const openModal = (filterType: string) => {
     setCurrentFilter(filterType);
@@ -45,6 +38,8 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     if (filterType === 'periode') setModalOptions(valeurPeriodesOptions);
     if (filterType === 'circuit') setModalOptions(valeurCircuitOptions);
     if (filterType === 'comparisonPeriode') setModalOptions(valeurPeriodesOptions);
+    if (filterType === 'classerPar') setModalOptions(indicateur);
+    if (filterType === 'filtrer') setModalOptions(segmentation);
 
     setModalVisible(true);
   };
@@ -54,9 +49,16 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     if (currentFilter === 'periode') setSelectedPeriode(value);
     if (currentFilter === 'circuit') setSelectedCircuit(value);
     if (currentFilter === 'comparisonPeriode') setSelectedComparisonPeriode(value);
+    if (currentFilter === 'classerPar') setSortBy(value);
+    if (currentFilter === 'filtrer') setFilterValue(value);
 
     setModalVisible(false);
   };
+
+    // Fonction pour basculer l'ordre entre "Croissant" et "Décroissant"
+    const toggleOrder = () => {
+      ((prevOrder) => (prevOrder === 'Croissant' ? 'Décroissant' : 'Croissant'));
+    };
 
   const loadData = async () => {
     try {
@@ -74,8 +76,69 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     loadData(); // Appeler la fonction au chargement ou lors de modifications
   }, [selectedPeriode, selectedCircuit, selectedComparisonPeriode]); // Dépendances pertinentes
 
-  
-  //console.log(data);
+  useEffect(() => {
+    const loadFilteredColumnValue = async () => {
+      if (!filterValue) return;
+      const result = await fetchFilteredColumnValue(barcode, filterValue,codeEAN[0]);
+      setFilteredColumnValue(result);
+    };
+    loadFilteredColumnValue();
+  }, [filterValue]);
+
+  //console.log(circuit[0],periode,selectedCircuit,selectedPeriode,);
+
+  useEffect(() => {
+    const loadReferences = async () => {
+      try {
+        const result = await fetchReferencesWithIndicators(
+          codeEAN[0], 
+          sortBy, 
+          order, 
+          denominationProduit[0], 
+          circuit[0], 
+          periode[0], 
+          selectedCircuit, 
+          selectedPeriode, 
+          selectedComparisonPeriode, 
+          indicateur
+        );
+
+        setReferencesData(result); // Stocke les références des deux périodes
+      } catch (error) {
+        console.error('Erreur lors du chargement des références :', error);
+      }
+    };
+
+    loadReferences();
+  }, [sortBy, order, selectedCircuit, selectedPeriode, selectedComparisonPeriode]);
+
+  const fetchIndicatorsForReference = async (ean: string) => {
+    try {
+      const result = await fetchDataByDynamicColumns(
+        {
+          ean,
+          periode: selectedPeriode,
+          periodeComparaison: selectedComparisonPeriode,
+          circuit: selectedCircuit,
+        },
+        { codeEAN, circuit, periode, indicateur }
+      );
+
+      setIndicatorsData(result);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des indicateurs :', error);
+    }
+  };
+
+  const toggleReference = async (ean: string) => {
+    if (expandedRef === ean) {
+      setExpandedRef(null);
+      setIndicatorsData([]);
+    } else {
+      setExpandedRef(ean);
+      await fetchIndicatorsForReference(ean);
+    }
+  };
 
   return (
      <LinearGradient
@@ -123,37 +186,37 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
           </TouchableOpacity>
         </View>
 
-      {/* Modale */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Sélectionnez une valeur</Text>
-            <FlatList
-              data={modalOptions}
-              keyExtractor={(item, index) => index.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.modalOption}
-                  onPress={() => handleSelect(item)}
-                >
-                  <Text style={styles.modalOptionText}>{item}</Text>
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.closeButtonText}>Fermer</Text>
-            </TouchableOpacity>
+        {/* Modale */}
+        <Modal
+          visible={modalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Sélectionnez une valeur</Text>
+              <FlatList
+                data={modalOptions}
+                keyExtractor={(item, index) => index.toString()}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.modalOption}
+                    onPress={() => handleSelect(item)}
+                  >
+                    <Text style={styles.modalOptionText}>{item}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.closeButtonText}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
         {/* Indicateurs */}
         <View style={styles.indicatorsWrapper}>
@@ -189,58 +252,118 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       </View>
 
       {/* Zone 2 : Filtres additionnels */}
+      {/* Filtres secondaires */}
       <View style={styles.additionalFilters}>
-        <TouchableOpacity style={styles.dropdownButton}>
+        {/* Bouton Classer par */}
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => openModal('classerPar')}
+        >
           <Text style={styles.dropdownText}>Classer par</Text>
+          <Text style={styles.selectedValue}>{sortBy || 'Choisir'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.dropdownButton}>
+
+        {/* Bouton Ordre */}
+        <TouchableOpacity style={styles.dropdownButton} onPress={toggleOrder}>
           <Text style={styles.dropdownText}>Ordre</Text>
+          <Text style={styles.selectedValue}>{order}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.dropdownButton}>
+
+        {/* Bouton Filtrer */}
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => openModal('filtrer')}
+        >
           <Text style={styles.dropdownText}>Filtrer</Text>
+          <Text style={styles.selectedValue}>{filterValue || 'Choisir'}</Text>
         </TouchableOpacity>
       </View>
 
+      {/* Modale */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Sélectionnez une valeur</Text>
+            <FlatList
+              data={modalOptions}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.modalOption}
+                  onPress={() => handleSelect(item)}
+                >
+                  <Text style={styles.modalOptionText}>{item}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Zone 3 : Liste des références */}
       <View style={styles.referencesSection}>
-          <FlatList
-            data={references}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <View>
-                {/* Ligne principale de la référence */}
-                <TouchableOpacity
-                  style={styles.referenceItem}
-                  onPress={() => toggleReference(item.id)}
-                >
-                  <Text style={styles.indicatorTitle}>{item.title}</Text>
-                  <Text style={styles.referenceVolume}>Volume : {item.volume}</Text>
-                </TouchableOpacity>
+      <FlatList
+        data={referencesData[0]} // Affiche les références de la période actuelle
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={({ item, index }) => (
+          <View>
+            {/* Ligne principale de la référence */}
+            <TouchableOpacity
+              style={styles.referenceItem}
+              onPress={() => toggleReference(item.ean)}
+            >
+              <Text style={styles.referenceTitle}>{item.reference}</Text>
+              <Text style={styles.referenceIndicatorValue}>
+                {item.indicatorValue}
+              </Text>
 
-                {/* Section extensible des indicateurs */}
-                {expandedRef === item.id && (
-                  <View style={styles.indicatorsContainer}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      <View style={styles.indicatorBox}>
-                        <View style={styles.indicatorTopSection}>
-                          <Text style={styles.indicatorTitle}>Volume</Text>
-                          <Text style={styles.indicatorValue}>{item.volume}</Text>
-                        </View>
-                        <View style={styles.indicatorMiddleSection}>
-                          <Text style={styles.indicatorSubTitle}>Écart</Text>
-                          <Text style={styles.indicatorDelta}>{item.delta}</Text>
-                        </View>
-                        <View style={styles.indicatorBottomSection}>
-                          <Text style={styles.indicatorSubTitle}>Évolution</Text>
-                          <Text style={styles.indicatorEvolution}>{item.evolution}</Text>
-                        </View>
-                      </View>
-                    </ScrollView>
+              {/* Différence entre les périodes */}
+              <Text style={styles.referenceDelta}>
+                {referencesData[1]?.[index]?.indicatorValue !== undefined
+                  ? (
+                      referencesData[0][index].indicatorValue -
+                      referencesData[1][index].indicatorValue
+                    ).toFixed(1)
+                  : '-'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Section extensible des indicateurs */}
+            {expandedRef === item.ean && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {indicateur.map((indicator, idx) => (
+                  <View key={idx} style={styles.indicatorBox}>
+                    <Text style={styles.indicatorTitle}>{indicator}</Text>
+                    <Text style={styles.indicatorValue}>
+                      {indicatorsData?.[0]?.[0]?.[indicator] || '-'}
+                    </Text>
+                    <Text style={styles.indicatorDelta}>
+                      {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                      indicatorsData?.[1]?.[0]?.[indicator] !== undefined
+                        ? (
+                            indicatorsData[1][0][indicator] -
+                            indicatorsData[0][0][indicator]
+                          ).toFixed(1)
+                        : '-'}
+                    </Text>
                   </View>
-                )}
-              </View>
+                ))}
+              </ScrollView>
             )}
-          />
+          </View>
+        )}
+      />
         </View>
     </SafeAreaView>
     </LinearGradient>
@@ -293,7 +416,7 @@ const styles = StyleSheet.create({
   indicatorValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#000',
+    color: '#2B26BF',
   },
   indicatorDelta: {
     fontSize: 16,
@@ -319,9 +442,9 @@ const styles = StyleSheet.create({
    flex:1,
   },
   referenceTitle: {
-    fontSize: 18,
+    fontSize: 12,
     fontWeight: 'bold',
-    color: 'white',
+    color: '000',
     marginBottom: 16,
     //marginTop:10,
     //marginLeft:16,
@@ -388,7 +511,7 @@ const styles = StyleSheet.create({
   },
   
   referenceItem: {
-  
+    flex:1,
     borderRadius: 8,
     padding: 16,
     marginBottom: 8,
@@ -470,7 +593,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 14,
   },
-  
+  selectedValue: {
+    fontSize: 12,
+    color: '#3A3FD4',
+  },
+  referenceText: { fontSize: 14, color: '#3A3FD4' },
 });
 
 export default AppPage;

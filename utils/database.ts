@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SQLite from 'expo-sqlite';
-import { fetchColumnsByType } from './columnConfig';
+import { fetchColumnsByType, periode } from './columnConfig';
 
 /*permets d'initialiser une instance de la base de données.
 Appeller la fonction permets de se connecter à une meme instance de la base 
@@ -83,7 +83,6 @@ export const handleDownloadData = async (table: string, tableName: string) => {
 
     if (!response.ok) throw new Error('Erreur réseau lors de la récupération des données.');
     const data = await response.json();
-    //console.log('Données reçues de l\'API :', data);
 
     if (!data || data.length === 0) {
       throw new Error('Aucune donnée valide reçue de l\'API.');
@@ -91,12 +90,10 @@ export const handleDownloadData = async (table: string, tableName: string) => {
 
     // Analyser les colonnes
     const columns = Object.keys(data[0]);
-    //console.log('Colonnes détectées :', columns);
 
     try {
     const createTableQuery = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.map(col => `"${col}" TEXT`).join(', ')});`;
     await db.execAsync(createTableQuery);
-      //console.log('Table créée avec succès.');
       
     } catch (error) {
       console.error('Erreur lors de la création de la table :', error);
@@ -105,24 +102,20 @@ export const handleDownloadData = async (table: string, tableName: string) => {
 
     // Fonction pour insérer les données
    const insertData = async (rows: any) => {
-      console.log("colonnes récupérées :",columns);
       for (const row of rows) {
         const placeholders = columns.map(() => '?').join(', ');
         const values = columns.map(col => row[col] || null); // Gérer les valeurs manquantes
         const insertQuery = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders});`;
         await db.runAsync(insertQuery, values);
-        //console.log(`Données insérées pour l'id ${row.id}`);
+      
       }
     };
     
 
     // Insérer la première page de données
     await insertData(data);
-    //console.log(data);
-
+  
     const firstRow = await db.getAllAsync(`SELECT * FROM ${tableName}`);
-    //console.log(firstRow);
-
 
     // Pagination pour les pages suivantes
     let page = 2;
@@ -195,6 +188,7 @@ export const fetchDataByDynamicColumns = async (
   }
 };
 
+
 export const fetchUniqueValues = async (column: string) => {
   const db = await initializeDatabase();
 
@@ -214,5 +208,110 @@ export const fetchUniqueValues = async (column: string) => {
   } catch (error) {
     console.error(`Erreur lors de la récupération des valeurs pour ${column}:`, error);
     return [];
+  }
+};
+
+export const fetchFilteredColumnValue = async (
+  ean: string,
+  column: string,
+  nomColEAN: string,
+): Promise<string | null> => {
+  const db = await initializeDatabase();
+
+  const query = `
+    SELECT ${column}
+    FROM data
+    WHERE ${nomColEAN} = ?
+    LIMIT 1
+  `;
+ 
+  try {
+    const result = await db.getAllAsync(query, [ean]);
+    return result[0][column] || null;
+  } catch (error) {
+    console.error(`Erreur lors de la récupération de la valeur filtrée pour ${column}:`, error);
+    return null;
+  }
+};
+
+// Fonction pour récupérer la liste des références classées et filtrées
+export const fetchReferences = async (
+  eanColumn: string, // Colonne contenant les codes EAN
+  sortBy: string, // Colonne d'indicateur pour le tri
+  order: 'Croissant' | 'Décroissant',
+  filterColumn: string,
+  filterValue: string,
+  referenceColumn: string, // Colonne contenant l'intitulé des références
+  circuitColumn: string,
+  periodeColumn: string,
+  circuitValue: string,
+  periodeValue: string,
+): Promise<{ reference: string; indicatorValue: number }[]> => {
+  if (!sortBy || !filterColumn || !filterValue || !referenceColumn) return [];
+
+  const orderSQL = order === 'Croissant' ? 'ASC' : 'DESC';
+  const query = `
+    SELECT ${referenceColumn} AS reference, ${sortBy} AS indicatorValue
+    FROM data
+    WHERE ${filterColumn} = ? AND ${sortBy} IS NOT NULL  AND ${circuitColumn} = ? AND ${periodeColumn} = ? 
+    ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
+  `;
+
+  try {
+    const db = await initializeDatabase();
+    const result = await db.getAllAsync(query, [filterValue,circuitValue,periodeValue]);
+
+    return result.map((row: any) => ({
+      reference: row.reference,
+      indicatorValue: row.indicatorValue,
+    }));
+  } catch (error) {
+    console.error('Erreur lors de la récupération des références :', error);
+    return [];
+  }
+};
+
+export const fetchReferencesWithIndicators = async (
+  eanColumn: string, // Colonne contenant les codes EAN
+  sortBy: string, // Indicateur pour le tri
+  order: 'Croissant' | 'Décroissant',
+  referenceColumn: string, // Colonne contenant l'intitulé des références
+  circuitColumn: string,
+  periodeColumn: string,
+  circuitValue: string,
+  periodeValue: string,
+  comparisonPeriodeValue: string, // Période de comparaison
+  indicators: string[] // Liste des indicateurs
+): Promise<any[][]> => {
+  if (!sortBy || !referenceColumn) return [[], []];
+
+  const orderSQL = order === 'Croissant' ? 'ASC' : 'DESC';
+
+  // Requête pour la période actuelle
+  const query1 = `
+    SELECT ${referenceColumn} AS reference, ${eanColumn} AS ean, ${sortBy} AS indicatorValue
+    FROM data
+    WHERE ${circuitColumn} = ? AND ${periodeColumn} = ?
+    ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
+  `;
+
+  // Requête pour la période de comparaison
+  const query2 = `
+    SELECT ${referenceColumn} AS reference, ${eanColumn} AS ean, ${sortBy} AS indicatorValue
+    FROM data
+    WHERE ${circuitColumn} = ? AND ${periodeColumn} = ?
+    ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
+  `;
+
+  try {
+    const db = await initializeDatabase();
+    
+    const result1 = await db.getAllAsync(query1, [circuitValue, periodeValue]);
+    const result2 = await db.getAllAsync(query2, [circuitValue, comparisonPeriodeValue]);
+
+    return [result1, result2]; // Retourne les résultats sous forme de double tableau
+  } catch (error) {
+    console.error('Erreur lors de la récupération des références :', error);
+    return [[], []];
   }
 };

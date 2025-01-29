@@ -3,6 +3,7 @@ import { View, TextInput, Button, StyleSheet, Text, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SQLite from 'expo-sqlite';
 import { handleDownloadData,loadingData } from '../utils/database';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function SettingsScreen({  }) {
   const [username, setUsername] = useState('');
@@ -67,12 +68,19 @@ export default function SettingsScreen({  }) {
   
 
   return (
+    <LinearGradient
+     colors={['#454AD8', '#7579FF']}
+     locations={[0, 1]}
+     start={{ x: 0, y: 0 }}
+     end={{ x: 0, y: 1 }}
+    style={styles.Fond}
+    >
     <View style={styles.container}>
       {isLoggedIn ? (
         <View>
           <Text style={styles.welcomeText}>Bienvenue, {companyName} !</Text>
-          <Button title="Charger les données" onPress={loadingData} />
-          <Button title="Se déconnecter" onPress={handleLogout} />
+          <Button title="Charger les données" onPress={loadingData} color={'#98FFBF'}/>
+          <Button title="Se déconnecter" onPress={handleLogout} color={'#98FFBF'}/>
           
         </View>
       ) : (
@@ -95,12 +103,13 @@ export default function SettingsScreen({  }) {
         </View>
       )}
     </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 16 },
-  title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
+  container: { flex: 1, justifyContent: 'center', padding: 16,color:'white' },
+  title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color:'white' },
   input: {
     height: 40,
     borderColor: 'gray',
@@ -108,6 +117,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 8,
     borderRadius: 5,
+    color:'white',
   },
-  welcomeText: { fontSize: 18, textAlign: 'center', marginBottom: 20 },
+  welcomeText: { fontSize: 18, textAlign: 'center', marginBottom: 20,color:'white' },
+  Fond:{
+    flex:1,
+  },
+  BoutonsChargement:{
+    color:'#98FFBF',
+  },
 });
