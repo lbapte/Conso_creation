@@ -281,7 +281,8 @@ export const fetchReferencesWithIndicators = async (
   circuitValue: string,
   periodeValue: string,
   comparisonPeriodeValue: string, // Période de comparaison
-  indicators: string[] // Liste des indicateurs
+  indicators: string[], // Liste des indicateurs
+  limit: number
 ): Promise<any[][]> => {
   if (!sortBy || !referenceColumn) return [[], []];
 
@@ -293,6 +294,7 @@ export const fetchReferencesWithIndicators = async (
     FROM data
     WHERE ${circuitColumn} = ? AND ${periodeColumn} = ?
     ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
+    LIMIT ?;
   `;
 
   // Requête pour la période de comparaison
@@ -301,13 +303,14 @@ export const fetchReferencesWithIndicators = async (
     FROM data
     WHERE ${circuitColumn} = ? AND ${periodeColumn} = ?
     ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
+    LIMIT ?;
   `;
 
   try {
     const db = await initializeDatabase();
     
-    const result1 = await db.getAllAsync(query1, [circuitValue, periodeValue]);
-    const result2 = await db.getAllAsync(query2, [circuitValue, comparisonPeriodeValue]);
+    const result1 = await db.getAllAsync(query1, [circuitValue, periodeValue,limit]);
+    const result2 = await db.getAllAsync(query2, [circuitValue, comparisonPeriodeValue,limit]);
 
     return [result1, result2]; // Retourne les résultats sous forme de double tableau
   } catch (error) {

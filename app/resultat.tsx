@@ -18,7 +18,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   //console.log(valeurPeriodesOptions,valeurCircuitOptions);
   const [referencesData, setReferencesData] = useState<any[][]>([[], []]);
   const [sortBy, setSortBy] = useState<string | null>(indicateur[0]); // Valeur sélectionnée pour "Classer par"
-  const [order, ] = useState<'Croissant' | 'Décroissant'>('Croissant'); // Valeur pour l'ordre
+  const [order, setOrder] = useState<'Croissant' | 'Décroissant'>('Décroissant'); // Valeur pour l'ordre
   const [filterValue, setFilterValue] = useState<string | null>(segmentation[0]); // Valeur sélectionnée pour "Filtrer"
   const [expandedRef, setExpandedRef] = useState<number | null>(null); // État pour gérer la référence ouverte
   const [modalVisible, setModalVisible] = useState<boolean>(false);
@@ -31,6 +31,8 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const [modalOptions, setModalOptions] = useState<string[]>([]);
   const [filteredColumnValue, setFilteredColumnValue] = useState<string | null>(null); // Valeur de la colonne filtrée pour la référence scannée
   const [indicatorsData, setIndicatorsData] = useState<any[]>([]); 
+  const [visibleReferences, setVisibleReferences] = useState<number>(7); // Commence avec 20 références
+  
 
   const openModal = (filterType: string) => {
     setCurrentFilter(filterType);
@@ -57,7 +59,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 
     // Fonction pour basculer l'ordre entre "Croissant" et "Décroissant"
     const toggleOrder = () => {
-      ((prevOrder) => (prevOrder === 'Croissant' ? 'Décroissant' : 'Croissant'));
+      setOrder((prevOrder) => (prevOrder === 'Croissant' ? 'Décroissant' : 'Croissant'));
     };
 
   const loadData = async () => {
@@ -100,9 +102,10 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
           selectedCircuit, 
           selectedPeriode, 
           selectedComparisonPeriode, 
-          indicateur
+          indicateur,
+          visibleReferences // ✅ Passe le nombre de références à récupérer
         );
-
+    
         setReferencesData(result); // Stocke les références des deux périodes
       } catch (error) {
         console.error('Erreur lors du chargement des références :', error);
@@ -110,7 +113,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     };
 
     loadReferences();
-  }, [sortBy, order, selectedCircuit, selectedPeriode, selectedComparisonPeriode]);
+  }, [sortBy, order, selectedCircuit, selectedPeriode, selectedComparisonPeriode,visibleReferences]);
 
   const fetchIndicatorsForReference = async (ean: string) => {
     try {
@@ -313,10 +316,11 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 
       {/* Zone 3 : Liste des références */}
       <View style={styles.referencesSection}>
-      <FlatList
-        data={referencesData[0]} // Affiche les références de la période actuelle
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item, index }) => (
+  
+        <FlatList
+            data={referencesData[0].slice(0, visibleReferences)} // ✅ Limite l'affichage des références
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={({ item, index }) => (
           <View>
             {/* Ligne principale de la référence */}
             <TouchableOpacity
@@ -324,18 +328,8 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
               onPress={() => toggleReference(item.ean)}
             >
               <Text style={styles.referenceTitle}>{item.reference}</Text>
-              <Text style={styles.referenceIndicatorValue}>
-                {item.indicatorValue}
-              </Text>
-
-              {/* Différence entre les périodes */}
-              <Text style={styles.referenceDelta}>
-                {referencesData[1]?.[index]?.indicatorValue !== undefined
-                  ? (
-                      referencesData[0][index].indicatorValue -
-                      referencesData[1][index].indicatorValue
-                    ).toFixed(1)
-                  : '-'}
+              <Text style={styles.indicatorValue}>
+                {item.indicatorValue !== undefined ? item.indicatorValue : '-'}
               </Text>
             </TouchableOpacity>
 
@@ -344,27 +338,62 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {indicateur.map((indicator, idx) => (
                   <View key={idx} style={styles.indicatorBox}>
-                    <Text style={styles.indicatorTitle}>{indicator}</Text>
-                    <Text style={styles.indicatorValue}>
-                      {indicatorsData?.[0]?.[0]?.[indicator] || '-'}
-                    </Text>
-                    <Text style={styles.indicatorDelta}>
-                      {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                      indicatorsData?.[1]?.[0]?.[indicator] !== undefined
-                        ? (
-                            indicatorsData[1][0][indicator] -
-                            indicatorsData[0][0][indicator]
-                          ).toFixed(1)
-                        : '-'}
-                    </Text>
+                    <View style={styles.indicatorTopSection}>
+                      <Text style={styles.indicatorTitle}>{indicator}</Text>
+                      <Text style={styles.indicatorValue}>
+                        {indicatorsData?.[0]?.[0]?.[indicator] || '-'}
+                      </Text>
+                    </View>
+                    <View style={styles.indicatorMiddleSection}>
+                      <Text style={styles.indicatorSubTitle}>Écart</Text>
+                      <Text style={styles.indicatorDelta}>
+                        {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                        indicatorsData?.[1]?.[0]?.[indicator] !== undefined
+                          ? (
+                              indicatorsData[1][0][indicator] -
+                              indicatorsData[0][0][indicator]
+                            ).toFixed(1)
+                          : '-'}
+                      </Text>
+                    </View>
+                    <View style={styles.indicatorBottomSection}>
+                      <Text style={styles.indicatorSubTitle}>Évolution</Text>
+                      <Text style={styles.indicatorEvolution}>
+                        {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                        indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
+                        indicatorsData[0][0][indicator] !== 0
+                          ? (
+                              ((indicatorsData[1][0][indicator] -
+                                indicatorsData[0][0][indicator]) /
+                                indicatorsData[0][0][indicator]) *
+                              100
+                            ).toFixed(1) + '%'
+                          : '-'}
+                      </Text>
+                    </View>
                   </View>
                 ))}
               </ScrollView>
             )}
           </View>
-        )}
-      />
-        </View>
+          )}
+
+                /* ✅ Vérification que la fonction s'exécute */
+          ListFooterComponent={() => (
+            <TouchableOpacity
+              style={styles.loadMoreButton}
+              onPress={() => {
+                console.log("Chargement de 20 références supplémentaires...");
+                setVisibleReferences(prev => prev + 20);
+              }}
+            >
+              <Text style={styles.loadMoreText}>Charger plus de références</Text>
+            </TouchableOpacity>
+          )}
+        />
+
+      </View>
+
     </SafeAreaView>
     </LinearGradient>
     
@@ -598,6 +627,21 @@ const styles = StyleSheet.create({
     color: '#3A3FD4',
   },
   referenceText: { fontSize: 14, color: '#3A3FD4' },
+  loadMoreContainer: {
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  loadMoreButton: {
+    backgroundColor: '#3A3FD4',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  loadMoreText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
 });
 
 export default AppPage;
