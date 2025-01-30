@@ -33,6 +33,9 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const [indicatorsData, setIndicatorsData] = useState<any[]>([]); 
   const [visibleReferences, setVisibleReferences] = useState<number>(7); // Commence avec 20 références
   
+  const [scannedRank, setScannedRank] = useState<number>(7); // Commence avec 20 références
+  
+
 
   const openModal = (filterType: string) => {
     setCurrentFilter(filterType);
@@ -93,27 +96,30 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     const loadReferences = async () => {
       try {
         const result = await fetchReferencesWithIndicators(
-          codeEAN[0], 
-          sortBy, 
-          order, 
-          denominationProduit[0], 
-          circuit[0], 
-          periode[0], 
-          selectedCircuit, 
-          selectedPeriode, 
-          selectedComparisonPeriode, 
-          indicateur,
-          visibleReferences // ✅ Passe le nombre de références à récupérer
+          codeEAN[0], // Colonne contenant les codes EAN
+          sortBy, // Indicateur utilisé pour le tri
+          order, // Ordre de tri
+          denominationProduit[0], // Colonne contenant l'intitulé des références
+          circuit[0], // Colonne contenant les circuits
+          periode[0], // Colonne contenant les périodes
+          selectedCircuit, // Circuit sélectionné
+          selectedPeriode, // Période sélectionnée
+          selectedComparisonPeriode, // Période de comparaison
+          indicateur, // Liste des indicateurs
+          visibleReferences, // Nombre de références à afficher
+          ean // Code EAN scanné
         );
-    
-        setReferencesData(result); // Stocke les références des deux périodes
+  
+        setReferencesData(result.references);
+        setScannedRank(result.scannedRank); // Stocke la position de la référence
       } catch (error) {
         console.error('Erreur lors du chargement des références :', error);
       }
     };
-
+  
     loadReferences();
-  }, [sortBy, order, selectedCircuit, selectedPeriode, selectedComparisonPeriode,visibleReferences]);
+  }, [sortBy, order, selectedCircuit, selectedPeriode, selectedComparisonPeriode, visibleReferences]);
+  
 
   const fetchIndicatorsForReference = async (ean: string) => {
     try {
@@ -315,6 +321,15 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       </Modal>
 
       {/* Zone 3 : Liste des références */}
+         {/* Ligne avec le niveau de ranking de la ref */}
+      <View style={styles.rankingContainer}>
+        <Text style={styles.rankingText}>
+          {scannedRank 
+            ? `Classement sur cet indicateur : ${scannedRank}`
+            : "Référence non trouvée dans le classement"}
+        </Text>
+      </View>
+          {/* liste de l'ensemble des refs à ouvrir */}
       <View style={styles.referencesSection}>
   
         <FlatList
@@ -641,6 +656,15 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  rankingContainer: {
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  rankingText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#3A3FD4',
   },
 });
 

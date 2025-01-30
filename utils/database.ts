@@ -282,39 +282,64 @@ export const fetchReferencesWithIndicators = async (
   periodeValue: string,
   comparisonPeriodeValue: string, // Période de comparaison
   indicators: string[], // Liste des indicateurs
-  limit: number
-): Promise<any[][]> => {
-  if (!sortBy || !referenceColumn) return [[], []];
+  limit: number,
+  scannedEan: string // Code EAN de la référence scannée
+): Promise<{ references: any[][]; scannedRank: number | null }> => {
+  if (!sortBy || !referenceColumn) return { references: [[], []], scannedRank: null };
 
   const orderSQL = order === 'Croissant' ? 'ASC' : 'DESC';
 
-  // Requête pour la période actuelle
+  // Requête pour la période actuelle avec RANK
   const query1 = `
-    SELECT ${referenceColumn} AS reference, ${eanColumn} AS ean, ${sortBy} AS indicatorValue
+    SELECT 
+      ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
+      ${referenceColumn} AS reference, 
+      ${eanColumn} AS ean, 
+      ${sortBy} AS indicatorValue
     FROM data
     WHERE ${circuitColumn} = ? AND ${periodeColumn} = ?
     ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
     LIMIT ?;
   `;
 
-  // Requête pour la période de comparaison
+  // Requête pour la période de comparaison avec RANK
   const query2 = `
-    SELECT ${referenceColumn} AS reference, ${eanColumn} AS ean, ${sortBy} AS indicatorValue
+    SELECT 
+      ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
+      ${referenceColumn} AS reference, 
+      ${eanColumn} AS ean, 
+      ${sortBy} AS indicatorValue
     FROM data
     WHERE ${circuitColumn} = ? AND ${periodeColumn} = ?
     ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
     LIMIT ?;
+  `;
+
+  // Requête pour obtenir le rang de la référence scannée
+  const scannedRankQuery = `
+    SELECT rank FROM (
+      SELECT 
+        ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
+        ${eanColumn} AS ean
+      FROM data
+      WHERE ${circuitColumn} = ? AND ${periodeColumn} = ?
+    ) 
+    WHERE ean = ?;
   `;
 
   try {
     const db = await initializeDatabase();
     
-    const result1 = await db.getAllAsync(query1, [circuitValue, periodeValue,limit]);
-    const result2 = await db.getAllAsync(query2, [circuitValue, comparisonPeriodeValue,limit]);
+    const result1 = await db.getAllAsync(query1, [circuitValue, periodeValue, limit]);
+    const result2 = await db.getAllAsync(query2, [circuitValue, comparisonPeriodeValue, limit]);
 
-    return [result1, result2]; // Retourne les résultats sous forme de double tableau
+    const scannedRankResult = await db.getAllAsync(scannedRankQuery, [circuitValue, periodeValue, scannedEan]);
+
+    const scannedRank = scannedRankResult.length > 0 ? scannedRankResult[0].rank : null;
+
+    return { references: [result1, result2], scannedRank }; // Retourne les résultats avec le classement de la référence scannée
   } catch (error) {
     console.error('Erreur lors de la récupération des références :', error);
-    return [[], []];
+    return { references: [[], []], scannedRank: null };
   }
 };
