@@ -3,6 +3,7 @@ import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,M
 import { LinearGradient } from 'expo-linear-gradient';
 import { codeEAN, circuit, periode, indicateur, valeurPeriodes, valeurcircuit,segmentation,denominationProduit } from '../utils/columnConfig';
 import { fetchDataByDynamicColumns,fetchReferences, fetchFilteredColumnValue,fetchReferencesWithIndicators } from '../utils/database';
+import { FontAwesome } from '@expo/vector-icons';
 
 interface ModalPageProps {
   barcode: string; // Code EAN transmis depuis la page Historique
@@ -31,9 +32,9 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const [modalOptions, setModalOptions] = useState<string[]>([]);
   const [filteredColumnValue, setFilteredColumnValue] = useState<string | null>(null); // Valeur de la colonne filtrée pour la référence scannée
   const [indicatorsData, setIndicatorsData] = useState<any[]>([]); 
-  const [visibleReferences, setVisibleReferences] = useState<number>(7); // Commence avec 20 références
+  const [visibleReferences, setVisibleReferences] = useState<number>(20); // Commence avec 20 références
   
-  const [scannedRank, setScannedRank] = useState<number>(7); // Commence avec 20 références
+  const [scannedRank, setScannedRank] = useState<number>(0); // Commence avec 20 références
   
 
 
@@ -149,6 +150,12 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     }
   };
 
+  const formatValue = (value: any) => {
+    if (value === undefined || value === null || isNaN(Number(value))) return '-'; // Gestion des valeurs non numériques
+    const num = Number(value); // Convertir en nombre pour éviter les erreurs
+    return Math.abs(num) < 10 ? num.toFixed(1) : Math.round(num).toString();
+  };
+
   return (
      <LinearGradient
      colors={['#454AD8', '#7579FF', '#F5F5F5']}
@@ -160,10 +167,12 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     <SafeAreaView style={styles.safeArea}>
       {/* Zone 1 : Informations sur la référence scannée */}
       {/* Bouton Fermer */}
+     
+      <View style={styles.headerSection}>
       <TouchableOpacity style={styles.closeButtonTop} onPress={onClose}>
             <Text style={styles.closeButtonTextTop}>Fermer</Text>
       </TouchableOpacity>
-      <View style={styles.headerSection}>
+       
         <Text style={styles.referenceTitle}>Dénomination produit Marque + EAN</Text>
 
         {/* Filtres (Période, Circuit, Période de comparaison) côte à côte */}
@@ -332,66 +341,79 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
           {/* liste de l'ensemble des refs à ouvrir */}
       <View style={styles.referencesSection}>
   
-        <FlatList
-            data={referencesData[0].slice(0, visibleReferences)} // ✅ Limite l'affichage des références
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={({ item, index }) => (
-          <View>
-            {/* Ligne principale de la référence */}
-            <TouchableOpacity
-              style={styles.referenceItem}
-              onPress={() => toggleReference(item.ean)}
-            >
-              <Text style={styles.referenceTitle}>{item.reference}</Text>
-              <Text style={styles.indicatorValue}>
-                {item.indicatorValue !== undefined ? item.indicatorValue : '-'}
-              </Text>
-            </TouchableOpacity>
+      <FlatList
+  data={referencesData[0]} // Affiche les références de la période actuelle
+  keyExtractor={(item, index) => index.toString()}
+  renderItem={({ item, index }) => (
+    <View>
+      {/* Ligne principale de la référence */}
+      <TouchableOpacity
+        style={styles.referenceItem}
+        onPress={() => toggleReference(item.ean)}
+      >
+        {/* Conteneur du chevron */}
+        <View style={styles.chevronContainer}>
+          <FontAwesome
+            name={expandedRef === item.ean ? 'chevron-up' : 'chevron-down'}
+            size={14}
+            color="#2B26BF"
+          />
+        </View>
 
-            {/* Section extensible des indicateurs */}
-            {expandedRef === item.ean && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {indicateur.map((indicator, idx) => (
-                  <View key={idx} style={styles.indicatorBox}>
-                    <View style={styles.indicatorTopSection}>
-                      <Text style={styles.indicatorTitle}>{indicator}</Text>
-                      <Text style={styles.indicatorValue}>
-                        {indicatorsData?.[0]?.[0]?.[indicator] || '-'}
-                      </Text>
-                    </View>
-                    <View style={styles.indicatorMiddleSection}>
-                      <Text style={styles.indicatorSubTitle}>Écart</Text>
-                      <Text style={styles.indicatorDelta}>
-                        {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                        indicatorsData?.[1]?.[0]?.[indicator] !== undefined
-                          ? (
-                              indicatorsData[1][0][indicator] -
-                              indicatorsData[0][0][indicator]
-                            ).toFixed(1)
-                          : '-'}
-                      </Text>
-                    </View>
-                    <View style={styles.indicatorBottomSection}>
-                      <Text style={styles.indicatorSubTitle}>Évolution</Text>
-                      <Text style={styles.indicatorEvolution}>
-                        {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                        indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
-                        indicatorsData[0][0][indicator] !== 0
-                          ? (
-                              ((indicatorsData[1][0][indicator] -
-                                indicatorsData[0][0][indicator]) /
-                                indicatorsData[0][0][indicator]) *
-                              100
-                            ).toFixed(1) + '%'
-                          : '-'}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-          </View>
-          )}
+        {/* Conteneur de l'indicateur */}
+        <View style={styles.indicatorContainer}>
+          <Text style={styles.referenceIndicator}>{formatValue(item.indicatorValue)}</Text>
+        </View>
+
+        {/* Conteneur du nom de la référence */}
+        <View style={styles.referenceContainer}>
+          <Text style={styles.referenceTitle}>{item.reference}</Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Ligne de séparation */}
+      <View style={styles.separator} />
+
+      {/* Section extensible des indicateurs (avec la structure en 3 parties) */}
+      {expandedRef === item.ean && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.indicatorsWrapper}>
+          {indicateur.map((indicator, idx) => (
+            <View key={idx} style={styles.indicatorBox}>
+              <View style={styles.indicatorTopSection}>
+                <Text style={styles.indicatorTitle}>{indicator}</Text>
+                <Text style={styles.indicatorValue}>
+                  {formatValue(indicatorsData?.[0]?.[0]?.[indicator])}
+                </Text>
+              </View>
+              <View style={styles.indicatorMiddleSection}>
+                <Text style={styles.indicatorSubTitle}>Écart</Text>
+                <Text style={styles.indicatorDelta}>
+                  {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                  indicatorsData?.[1]?.[0]?.[indicator] !== undefined
+                    ? formatValue(indicatorsData[1][0][indicator] - indicatorsData[0][0][indicator])
+                    : '-'}
+                </Text>
+              </View>
+              <View style={styles.indicatorBottomSection}>
+                <Text style={styles.indicatorSubTitle}>Évolution</Text>
+                <Text style={styles.indicatorEvolution}>
+                  {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                  indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
+                  indicatorsData[0][0][indicator] !== 0
+                    ? (
+                        ((indicatorsData[1][0][indicator] - indicatorsData[0][0][indicator]) /
+                          indicatorsData[0][0][indicator]) *
+                        100
+                      ).toFixed(1) + '%'
+                    : '-'}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  )}
 
                 /* ✅ Vérification que la fonction s'exécute */
           ListFooterComponent={() => (
@@ -416,9 +438,44 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 };
 
 const styles = StyleSheet.create({
+  chevronContainer: {
+    width: 15, // Largeur fixe pour ne pas bouger
+    alignItems: 'center',
+  },
+  indicatorContainer: {
+    width: 50, // Largeur fixe pour les indicateurs
+    alignItems: 'center',
+  },
+  referenceContainer: {
+    flex: 1, // Utilise l'espace restant
+  },
+  referenceItem: {
+    flexDirection: 'row', // Alignement horizontal
+    justifyContent: 'space-between', // Espacement entre les éléments
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    paddingVertical: 12, // Réduit l’espacement
+    paddingHorizontal: 20,
+  },
+  referenceIndicator: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2B26BF',
+  },
+  referenceTitle: {
+    fontSize: 12,
+    //fontWeight: 'bold',
+    color: '#000',
+    flexShrink: 1, // Garde le texte sur une seule ligne
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#3A3FD4',
+    marginHorizontal: 50,
+  },
   indicatorBox: {
-    width: 100, // Largeur des rectangles // Assurez une hauteur suffisante pour toutes les sections
-    height:150,
+    width: 100,
+    height: 140,
     marginHorizontal: 4,
     backgroundColor: 'white',
     borderRadius: 8,
@@ -429,8 +486,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingRight:2,
-    paddingLeft:2,
+    padding: 4,
   },
   indicatorMiddleSection: {
     flex: 1,
@@ -445,12 +501,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: 'white',
+
   },
-  
   indicatorTitle: {
-    fontSize: 10,
-    fontWeight: 'bold',
+    fontSize: 12,
+    fontWeight: 'medium',
     color: '#000',
+    textAlign: 'center',
   },
   indicatorSubTitle: {
     fontSize: 10,
@@ -463,37 +520,32 @@ const styles = StyleSheet.create({
     color: '#2B26BF',
   },
   indicatorDelta: {
-    fontSize: 16,
+    fontSize: 14,
     color: 'white',
     fontWeight: 'bold',
   },
   indicatorEvolution: {
-    fontSize: 16,
+    fontSize: 14,
     color: 'white',
     fontWeight: 'bold',
-  },  
+  },
+
+
+
+  
   safeArea: {
     flex: 1,
     backgroundColor: 'transparent',
   },
   headerSection: {
-    flex: 0.8,
+    flex: 0.7,
     paddingTop: 10,
-    paddingBottom: 10,
     backgroundColor: 'transparent',
   },
   fond: {
    flex:1,
   },
-  referenceTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '000',
-    marginBottom: 16,
-    //marginTop:10,
-    //marginLeft:16,
-    alignSelf:'center',
-  },
+  
   filterContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -504,9 +556,11 @@ const styles = StyleSheet.create({
     height: 50,
   },
   filterButton: {
-    backgroundColor: 'white',
+    backgroundColor: 'transparent',
     marginHorizontal: 4,
     borderRadius: 8,
+    borderWidth:1,
+    borderColor:'#98FFBF',
     paddingVertical: 10,
     paddingHorizontal: 5,
     justifyContent: 'center',
@@ -515,12 +569,12 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#3A3FD4',
+    color: 'white',
     marginBottom: 4,
   },
   filterValue: {
     fontSize: 12,
-    color: '#3A3FD4',
+    color: 'white',
     
   },
   indicatorsWrapper: {
@@ -539,29 +593,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
-    padding: 16,
+    padding: 8,
   },
   dropdownButton: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: 'transparent',
     borderRadius: 8,
     marginHorizontal: 4,
     padding: 10,
     alignItems: 'center',
+    borderWidth:1,
+    borderColor:'#3A3FD4',
   },
   dropdownText: {
     fontSize: 14,
+    fontWeight:'bold',
     color: '#3A3FD4',
   },
   
-  referenceItem: {
-    flex:1,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 8,
-    backgroundColor: 'white',
-    
-  },
+  
   referenceData: {
     marginTop: 8,
   },
@@ -620,7 +670,7 @@ const styles = StyleSheet.create({
   },
   referencesSection: {
     flex: 1,
-    padding: 16,
+    padding: 1,
     backgroundColor: '#F5F5F5',
   },
   closeButtonTop: {
@@ -667,5 +717,6 @@ const styles = StyleSheet.create({
     color: '#3A3FD4',
   },
 });
+
 
 export default AppPage;
