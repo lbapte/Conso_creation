@@ -19,7 +19,7 @@ export default function Scanner() {
   const [scanned, setScanned] = useState(false);
   const [scannedCode, setScannedCode] = useState<string | null>(null); // État pour le code scanné
 
-  //const navigation = useNavigation();
+  const navigation = useNavigation();
 
   const handleBarCodeScanned = ({ data }: BarcodeScanningResult) => {
     setScanned(true);
