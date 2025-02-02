@@ -272,74 +272,105 @@ export const fetchReferences = async (
 };
 
 export const fetchReferencesWithIndicators = async (
-  eanColumn: string, // Colonne contenant les codes EAN
-  sortBy: string, // Indicateur pour le tri
+  eanColumn: string, 
+  sortBy: string, 
   order: 'Croissant' | 'Décroissant',
-  referenceColumn: string, // Colonne contenant l'intitulé des références
+  referenceColumn: string, 
   circuitColumn: string,
   periodeColumn: string,
   circuitValue: string,
   periodeValue: string,
-  comparisonPeriodeValue: string, // Période de comparaison
-  indicators: string[], // Liste des indicateurs
+  comparisonPeriodeValue: string, 
+  indicators: string[], 
   limit: number,
-  scannedEan: string // Code EAN de la référence scannée
+  scannedEan: string,
+  segmentationColumn?: string, 
+  advancedFilterIndicator?: string,
+  advancedFilterOperator?: string,
+  advancedFilterValue?: string 
 ): Promise<{ references: any[][]; scannedRank: number | null }> => {
   if (!sortBy || !referenceColumn) return { references: [[], []], scannedRank: null };
 
   const orderSQL = order === 'Croissant' ? 'ASC' : 'DESC';
 
-  // Requête pour la période actuelle avec RANK
-  const query1 = `
-    SELECT 
-      ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
-      ${referenceColumn} AS reference, 
-      ${eanColumn} AS ean, 
-      ${sortBy} AS indicatorValue
-    FROM data
-    WHERE ${circuitColumn} = ? AND ${periodeColumn} = ?
-    ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
-    LIMIT ?;
-  `;
-
-  // Requête pour la période de comparaison avec RANK
-  const query2 = `
-    SELECT 
-      ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
-      ${referenceColumn} AS reference, 
-      ${eanColumn} AS ean, 
-      ${sortBy} AS indicatorValue
-    FROM data
-    WHERE ${circuitColumn} = ? AND ${periodeColumn} = ?
-    ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
-    LIMIT ?;
-  `;
-
-  // Requête pour obtenir le rang de la référence scannée
-  const scannedRankQuery = `
-    SELECT rank FROM (
-      SELECT 
-        ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
-        ${eanColumn} AS ean
-      FROM data
-      WHERE ${circuitColumn} = ? AND ${periodeColumn} = ?
-    ) 
-    WHERE ean = ?;
-  `;
-
   try {
     const db = await initializeDatabase();
     
-    const result1 = await db.getAllAsync(query1, [circuitValue, periodeValue, limit]);
-    const result2 = await db.getAllAsync(query2, [circuitValue, comparisonPeriodeValue, limit]);
+    // 🔹 Récupération de la valeur de segmentation
+    let segmentationValue: string | null = null;
+    if (segmentationColumn && segmentationColumn !== "Aucun filtre") {
+      const validColumnName = segmentationColumn.replace(/[^a-zA-Z0-9_]/g, ""); // Nettoie le nom de colonne
+      const segmentationQuery = `
+        SELECT ${validColumnName} AS segmentationValue 
+        FROM data 
+        WHERE ${eanColumn} = ? 
+        LIMIT 1;
+      `;
 
-    const scannedRankResult = await db.getAllAsync(scannedRankQuery, [circuitValue, periodeValue, scannedEan]);
+      try {
+        const segmentationResult = await db.getAllAsync(segmentationQuery, [scannedEan]);
+        segmentationValue = segmentationResult.length > 0 ? segmentationResult[0].segmentationValue : null;
+      } catch (error) {
+        console.error("Erreur lors de la récupération de segmentationValue :", error);
+      }
+    }
 
-    const scannedRank = scannedRankResult.length > 0 ? scannedRankResult[0].rank : null;
+    // 📌 Construction dynamique des filtres SQL
+    let whereConditions = [`${circuitColumn} = ?`, `${periodeColumn} = ?`];
+    let queryParams: any[] = [circuitValue, periodeValue];
 
-    return { references: [result1, result2], scannedRank }; // Retourne les résultats avec le classement de la référence scannée
+    if (segmentationColumn && segmentationValue && segmentationValue !== 'Aucun filtre') {
+      whereConditions.push(`${segmentationColumn} = ?`);
+      queryParams.push(segmentationValue);
+    }
+
+    if (advancedFilterIndicator && advancedFilterOperator && advancedFilterValue !== undefined && advancedFilterValue !== '') {
+      const numericValue = parseFloat(advancedFilterValue);
+      if (!isNaN(numericValue)) {
+        whereConditions.push(`CAST(${advancedFilterIndicator} AS NUMERIC) ${advancedFilterOperator} ?`);
+        queryParams.push(numericValue);
+      }
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // 🔹 Requête SQL principale avec classement des références
+    const query = `
+      SELECT 
+        ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
+        ${referenceColumn} AS reference, 
+        ${eanColumn} AS ean, 
+        ${sortBy} AS indicatorValue
+      FROM data
+      ${whereClause}
+      ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
+      LIMIT ?;
+    `;
+
+    queryParams.push(limit);
+
+    const result1 = await db.getAllAsync(query, queryParams);
+    const result2 = await db.getAllAsync(query, [...queryParams.slice(0, -1), comparisonPeriodeValue, limit]);
+
+    // 🔹 Requête SQL pour récupérer le rang de la référence scannée
+    const rankQuery = `
+      SELECT rank FROM (
+        SELECT 
+          ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
+          ${eanColumn} AS ean
+        FROM data
+        ${whereClause}
+      ) 
+      WHERE ean = ?;
+    `;
+
+    const rankResult = await db.getAllAsync(rankQuery, [...queryParams.slice(0, -1), scannedEan]);
+    const scannedRank = rankResult.length > 0 ? rankResult[0].rank : null;
+
+    return { references: [result1, result2], scannedRank };
   } catch (error) {
     console.error('Erreur lors de la récupération des références :', error);
     return { references: [[], []], scannedRank: null };
   }
 };
+

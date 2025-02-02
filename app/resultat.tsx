@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,Modal} from 'react-native';
+import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,Modal, TextInput} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { codeEAN, circuit, periode, indicateur, valeurPeriodes, valeurcircuit,segmentation,denominationProduit } from '../utils/columnConfig';
 import { fetchDataByDynamicColumns,fetchReferences, fetchFilteredColumnValue,fetchReferencesWithIndicators } from '../utils/database';
@@ -33,10 +33,41 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const [filteredColumnValue, setFilteredColumnValue] = useState<string | null>(null); // Valeur de la colonne filtrée pour la référence scannée
   const [indicatorsData, setIndicatorsData] = useState<any[]>([]); 
   const [visibleReferences, setVisibleReferences] = useState<number>(20); // Commence avec 20 références
-  
   const [scannedRank, setScannedRank] = useState<number>(0); // Commence avec 20 références
-  
+  const [referenceName, setReferenceName] = useState<string>('Chargement...');
+  const [advancedFilter, setAdvancedFilter] = useState<{ indicator: string; operator: string; value: string }>({
+    indicator: '',
+    operator: '',
+    value: '',
+  });
+  const [isAdvancedFilterEnabled, setIsAdvancedFilterEnabled] = useState(false);
+  const [advancedFilterModalVisible, setAdvancedFilterModalVisible] = useState(false);
 
+  const [showDetailedIndicators, setShowDetailedIndicators] = useState(false); //gère l'affichage des partie moyennes et basses des indicateurs en header
+  const baseIndicatorHeight = 80; // Hauteur de base pour le titre et la valeur dans la partie header
+  const expandedIndicatorHeight = 140; // Hauteur complète avec détails
+  
+  // Ouvrir la modale du filtre avancé
+  const openAdvancedFilterModal = () => {
+    setAdvancedFilterModalVisible(true);
+  };
+  
+  // Sélectionner une valeur pour le filtre avancé
+  const handleAdvancedFilterSelect = (type: string, value: string) => {
+    setAdvancedFilter((prev) => ({ ...prev, [type]: value }));
+  };
+  
+  // Appliquer le filtre avancé
+  const applyAdvancedFilter = () => {
+    setIsAdvancedFilterEnabled(true);
+    setAdvancedFilterModalVisible(false);
+  };
+  
+  // Réinitialiser le filtre avancé
+  const resetAdvancedFilter = () => {
+    setAdvancedFilter({ indicator: '', operator: '', value: '' });
+    setIsAdvancedFilterEnabled(false);
+  };
 
   const openModal = (filterType: string) => {
     setCurrentFilter(filterType);
@@ -84,12 +115,25 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 
   useEffect(() => {
     const loadFilteredColumnValue = async () => {
-      if (!filterValue) return;
-      const result = await fetchFilteredColumnValue(barcode, filterValue,codeEAN[0]);
-      setFilteredColumnValue(result);
+      // ✅ Vérifie si le filtre est "Aucun filtre" et stoppe l'exécution
+      if (!filterValue || filterValue === "Aucun filtre") {
+        setFilteredColumnValue(null); // Désactive le filtre
+        return;
+      }
+  
+      try {
+        const result = await fetchFilteredColumnValue(barcode, filterValue, codeEAN[0]);
+        console.log("Valeur filtrée récupérée :", result); // 🔹 Ajout d'un log pour le debug
+        setFilteredColumnValue(result);
+      } catch (error) {
+        console.error("Erreur lors de la récupération de la valeur filtrée :", error);
+        setFilteredColumnValue(null);
+      }
     };
+  
     loadFilteredColumnValue();
   }, [filterValue]);
+  
 
   //console.log(circuit[0],periode,selectedCircuit,selectedPeriode,);
 
@@ -97,30 +141,44 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     const loadReferences = async () => {
       try {
         const result = await fetchReferencesWithIndicators(
-          codeEAN[0], // Colonne contenant les codes EAN
-          sortBy, // Indicateur utilisé pour le tri
-          order, // Ordre de tri
-          denominationProduit[0], // Colonne contenant l'intitulé des références
-          circuit[0], // Colonne contenant les circuits
-          periode[0], // Colonne contenant les périodes
-          selectedCircuit, // Circuit sélectionné
-          selectedPeriode, // Période sélectionnée
-          selectedComparisonPeriode, // Période de comparaison
-          indicateur, // Liste des indicateurs
-          visibleReferences, // Nombre de références à afficher
-          ean // Code EAN scanné
+          codeEAN[0], 
+          sortBy, 
+          order, 
+          denominationProduit[0], 
+          circuit[0], 
+          periode[0], 
+          selectedCircuit, 
+          selectedPeriode, 
+          selectedComparisonPeriode, 
+          indicateur, 
+          visibleReferences, 
+          ean, 
+          filterValue || undefined, 
+          advancedFilter.indicator || undefined, 
+          advancedFilter.operator || undefined, 
+          advancedFilter.value !== '' ? advancedFilter.value : undefined // 🔹 Vérification ici
         );
   
         setReferencesData(result.references);
-        setScannedRank(result.scannedRank); // Stocke la position de la référence
+        setScannedRank(result.scannedRank);
       } catch (error) {
         console.error('Erreur lors du chargement des références :', error);
       }
     };
   
     loadReferences();
-  }, [sortBy, order, selectedCircuit, selectedPeriode, selectedComparisonPeriode, visibleReferences]);
-  
+  }, [
+    sortBy, 
+    order, 
+    selectedCircuit, 
+    selectedPeriode, 
+    selectedComparisonPeriode, 
+    visibleReferences, 
+    advancedFilter, 
+    filterValue 
+  ]);  
+
+
 
   const fetchIndicatorsForReference = async (ean: string) => {
     try {
@@ -156,6 +214,26 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     return Math.abs(num) < 10 ? num.toFixed(1) : Math.round(num).toString();
   };
 
+  const fetchReferenceName = async () => {
+    try {
+      const result = await fetchFilteredColumnValue(barcode, denominationProduit[0], codeEAN[0]);
+      if (result) {
+        setReferenceName(result);
+      } else {
+        setReferenceName('Dénomination inconnue');
+      }
+    } catch (error) {
+      console.error("Erreur lors de la récupération de la dénomination :", error);
+      setReferenceName('Erreur chargement');
+    }
+  };
+  
+  // Charger la dénomination au montage du composant
+  useEffect(() => {
+    fetchReferenceName();
+  }, [barcode]);
+  
+
   return (
      <LinearGradient
      colors={['#454AD8', '#7579FF', '#F5F5F5']}
@@ -169,11 +247,16 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       {/* Bouton Fermer */}
      
       <View style={styles.headerSection}>
-      <TouchableOpacity style={styles.closeButtonTop} onPress={onClose}>
-            <Text style={styles.closeButtonTextTop}>Fermer</Text>
-      </TouchableOpacity>
-       
-        <Text style={styles.referenceTitle}>Dénomination produit Marque + EAN</Text>
+
+        <View style={styles.headerContainer}>
+            {/* Bouton Fermer */}
+            <TouchableOpacity style={styles.closeButtonTop} onPress={onClose}>
+              <Text style={styles.closeButtonTextTop}>Fermer</Text>
+            </TouchableOpacity>
+
+            {/* Titre de la référence */}
+            <Text style={styles.referenceTitleWhite}>{referenceName}</Text>
+        </View>
 
         {/* Filtres (Période, Circuit, Période de comparaison) côte à côte */}
         <View style={styles.filterContainer}>
@@ -182,7 +265,9 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
             onPress={() => openModal('periode')}
           >
             <Text style={styles.filterText}>Période</Text>
-            <Text style={styles.filterValue}>{selectedPeriode || 'Choisir'}</Text>
+            <Text style={styles.filterValue} numberOfLines={1} ellipsizeMode="tail">
+              {selectedPeriode || 'Choisir'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -190,7 +275,9 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
             onPress={() => openModal('circuit')}
           >
             <Text style={styles.filterText}>Circuit</Text>
-            <Text style={styles.filterValue}>{selectedCircuit || 'Choisir'}</Text>
+            <Text style={styles.filterValue} numberOfLines={1} ellipsizeMode="tail">
+              {selectedCircuit || 'Choisir'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -198,7 +285,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
             onPress={() => openModal('comparisonPeriode')}
           >
             <Text style={styles.filterText}>Période de comparaison</Text>
-            <Text style={styles.filterValue}>
+            <Text style={styles.filterValue} numberOfLines={1} ellipsizeMode="tail">
               {selectedComparisonPeriode || 'Choisir'}
             </Text>
           </TouchableOpacity>
@@ -219,11 +306,35 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
                 keyExtractor={(item, index) => index.toString()}
                 renderItem={({ item }) => (
                   <TouchableOpacity
-                    style={styles.modalOption}
+                    style={[
+                      styles.modalOption,
+                      item === selectedPeriode ||
+                      item === selectedCircuit ||
+                      item === selectedComparisonPeriode ||
+                      item === sortBy ||
+                      item === filterValue ||
+                      item === order
+                        ? styles.selectedModalOption
+                        : null,
+                    ]}
                     onPress={() => handleSelect(item)}
                   >
-                    <Text style={styles.modalOptionText}>{item}</Text>
-                  </TouchableOpacity>
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      item === selectedPeriode ||
+                      item === selectedCircuit ||
+                      item === selectedComparisonPeriode ||
+                      item === sortBy ||
+                      item === filterValue ||
+                      item === order
+                        ? styles.selectedModalOptionText
+                        : null,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                </TouchableOpacity>
                 )}
               />
               <TouchableOpacity
@@ -236,17 +347,19 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
           </View>
         </Modal>
 
+
         {/* Indicateurs */}
         <View style={styles.indicatorsWrapper}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.indicatorsWrapper}>
           {indicateur.map((indicator, index) => (
-            <View key={index} style={styles.indicatorBox}>
+            <View key={index} style={[styles.indicatorBox,{ height: showDetailedIndicators ? expandedIndicatorHeight : baseIndicatorHeight }]}>
               <View style={styles.indicatorTopSection}>
-                <Text style={styles.indicatorTitle}>{indicator}</Text>
+                <Text style={styles.indicatorTitle} numberOfLines={2} ellipsizeMode="tail">{indicator}</Text>
                 <Text style={styles.indicatorValue}>
                   {data.length > 0 ? data[0][0][indicator] || '-' : '-'}
                 </Text>
               </View>
+              {showDetailedIndicators && (
               <View style={styles.indicatorMiddleSection}>
                 <Text style={styles.indicatorSubTitle}>Écart</Text>
                 <Text style={styles.indicatorDelta}>
@@ -255,6 +368,8 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
                   : '-'}
                 </Text>
               </View>
+              )}
+              {showDetailedIndicators && (
               <View style={styles.indicatorBottomSection}>
                 <Text style={styles.indicatorSubTitle}>Évolution</Text>
                 <Text style={styles.indicatorEvolution}>
@@ -263,71 +378,199 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
                   : '-'}
                 </Text>
               </View>
+              )}
             </View>
           ))}
         </ScrollView>
+        <TouchableOpacity
+          style={styles.toggleDetailsButton}
+          onPress={() => setShowDetailedIndicators(prev => !prev)}
+        >
+          <Text style={styles.toggleDetailsText}>
+            {showDetailedIndicators ? "Afficher moins" : "Afficher plus"}
+          </Text>
+        </TouchableOpacity>
         </View>
       </View>
 
       {/* Zone 2 : Filtres additionnels */}
       {/* Filtres secondaires */}
-      <View style={styles.additionalFilters}>
-        {/* Bouton Classer par */}
-        <TouchableOpacity
-          style={styles.dropdownButton}
-          onPress={() => openModal('classerPar')}
-        >
-          <Text style={styles.dropdownText}>Classer par</Text>
-          <Text style={styles.selectedValue}>{sortBy || 'Choisir'}</Text>
-        </TouchableOpacity>
+      
+      <View style={styles.filterScrollContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.additionalFilters}>
+            {/* Bouton Classer par */}
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => openModal('classerPar')}
+            >
+              <Text style={styles.dropdownText}>Classer par</Text>
+              <Text style={styles.selectedValue} numberOfLines={1} ellipsizeMode="tail">{sortBy || 'Choisir'}</Text>
+            </TouchableOpacity>
 
-        {/* Bouton Ordre */}
-        <TouchableOpacity style={styles.dropdownButton} onPress={toggleOrder}>
-          <Text style={styles.dropdownText}>Ordre</Text>
-          <Text style={styles.selectedValue}>{order}</Text>
-        </TouchableOpacity>
+            {/* Bouton Ordre */}
+            <TouchableOpacity style={styles.dropdownButton} onPress={toggleOrder}>
+              <Text style={styles.dropdownText}>Ordre</Text>
+              <Text style={styles.selectedValue} numberOfLines={1} ellipsizeMode="tail">{order}</Text>
+            </TouchableOpacity>
 
-        {/* Bouton Filtrer */}
-        <TouchableOpacity
-          style={styles.dropdownButton}
-          onPress={() => openModal('filtrer')}
-        >
-          <Text style={styles.dropdownText}>Filtrer</Text>
-          <Text style={styles.selectedValue}>{filterValue || 'Choisir'}</Text>
-        </TouchableOpacity>
+            {/* Bouton Filtrer */}
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => openModal('filtrer')}
+            >
+              <Text style={styles.dropdownText}>Filtrer</Text>
+              <Text style={styles.selectedValue} numberOfLines={1} ellipsizeMode="tail">{filterValue || 'Choisir'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={openAdvancedFilterModal}
+            >
+              <Text style={styles.dropdownText}>Filtre Avancé</Text>
+              <Text style={styles.selectedValue} numberOfLines={1} ellipsizeMode="tail">
+                {isAdvancedFilterEnabled
+                  ? `${advancedFilter.indicator} ${advancedFilter.operator} ${advancedFilter.value}`
+                  : 'Aucun'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </View>
 
       {/* Modale */}
       <Modal
-        visible={modalVisible}
+  visible={modalVisible}
+  transparent
+  animationType="slide"
+  onRequestClose={() => setModalVisible(false)}
+>
+  <View style={styles.modalContainer}>
+    <View style={styles.modalContent}>
+      <Text style={styles.modalTitle}>Sélectionnez une valeur</Text>
+      <FlatList
+        data={modalOptions}
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={({ item }) => {
+          const isSelected = item === sortBy || item === filterValue;
+
+          return (
+            <TouchableOpacity
+              style={[
+                styles.modalOption,
+                isSelected && styles.selectedModalOption,
+              ]}
+              onPress={() => handleSelect(item)}
+            >
+              <Text
+                style={[
+                  styles.modalOptionText,
+                  isSelected && styles.selectedModalOptionText,
+                ]}
+              >
+                {item}
+              </Text>
+            </TouchableOpacity>
+          );
+        }}
+      />
+      <TouchableOpacity
+        style={styles.closeButton}
+        onPress={() => setModalVisible(false)}
+      >
+        <Text style={styles.closeButtonText}>Fermer</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+      </Modal>
+
+      <Modal
+        visible={advancedFilterModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => setAdvancedFilterModalVisible(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Sélectionnez une valeur</Text>
+
+            {/* Bouton Fermer en haut à gauche */}
+            <TouchableOpacity style={styles.closeButtonTopClearBack} onPress={() => setAdvancedFilterModalVisible(false)}>
+              <Text style={styles.closeButtonText}>Fermer</Text>
+            </TouchableOpacity>
+
+            {/* Sélectionner l'indicateur */}
+            <Text style={styles.modalLabel}>Indicateur</Text>
             <FlatList
-              data={modalOptions}
+              data={indicateur}
               keyExtractor={(item, index) => index.toString()}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.modalOption}
-                  onPress={() => handleSelect(item)}
+                  style={[
+                    styles.modalOption,
+                    advancedFilter.indicator === item && styles.selectedModalOption,
+                  ]}
+                  onPress={() => handleAdvancedFilterSelect('indicator', item)}
                 >
-                  <Text style={styles.modalOptionText}>{item}</Text>
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      advancedFilter.indicator === item && styles.selectedModalOptionText,
+                    ]}
+                  >
+                    {item}
+                  </Text>
                 </TouchableOpacity>
               )}
             />
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.closeButtonText}>Fermer</Text>
-            </TouchableOpacity>
+
+            {/* Sélectionner l'opérateur (en ligne) */}
+            <Text style={styles.modalLabel}>Opérateur</Text>
+            <View style={styles.operatorsContainer}>
+              {['=', '>=', '<=', '>', '<'].map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[
+                    styles.operatorButton,
+                    advancedFilter.operator === item && styles.selectedOperator,
+                  ]}
+                  onPress={() => handleAdvancedFilterSelect('operator', item)}
+                >
+                  <Text
+                    style={[
+                      styles.operatorText,
+                      advancedFilter.operator === item && styles.selectedOperatorText,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Saisie de la valeur */}
+            <Text style={styles.modalLabel}>Valeur</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              placeholder="Entrer une valeur"
+              value={advancedFilter.value}
+              onChangeText={(text) => handleAdvancedFilterSelect('value', text)}
+            />
+
+            {/* Boutons d'action (Appliquer & Réinitialiser bien alignés) */}
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.applyButton} onPress={applyAdvancedFilter}>
+                <Text style={styles.applyButtonText}>Appliquer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.resetButton} onPress={resetAdvancedFilter}>
+                <Text style={styles.resetButtonText}>Réinitialiser</Text>
+              </TouchableOpacity>
+            </View>
+
           </View>
         </View>
       </Modal>
+
 
       {/* Zone 3 : Liste des références */}
          {/* Ligne avec le niveau de ranking de la ref */}
@@ -438,6 +681,108 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 };
 
 const styles = StyleSheet.create({
+  toggleDetailsButton: {
+    //marginTop: 5,
+    //backgroundColor: '#3A3FD4',
+    //paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    alignSelf: 'center', // Centrer le bouton sous les indicateurs
+  },
+  toggleDetailsText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+
+
+  operatorsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginVertical: 10,
+  },
+  filterScrollContainer: {
+    flexDirection: 'row',
+    paddingVertical: 5,
+    backgroundColor: '#F5F5F5',
+  },
+  operatorButton: {
+    backgroundColor: '#F5F5F5',
+    padding: 10,
+    borderRadius: 8,
+    width: 50,
+    alignItems: 'center',
+  },
+  operatorText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#3A3FD4',
+  },
+  selectedOperator: {
+    backgroundColor: '#2B26BF',
+    
+  },
+  selectedOperatorText: {
+    color: 'white',
+    
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 10,
+    
+  },
+  applyButton: {
+    backgroundColor: '#3A3FD4',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  applyButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  resetButton: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  resetButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    backgroundColor: '#3A3FD4',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  closeButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: '#3A3FD4',
+    borderRadius: 8,
+    padding: 10,
+    width: '80%',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#3A3FD4',
+    marginBottom: 5,
+  },
+
+
   chevronContainer: {
     width: 15, // Largeur fixe pour ne pas bouger
     alignItems: 'center',
@@ -467,6 +812,13 @@ const styles = StyleSheet.create({
     //fontWeight: 'bold',
     color: '#000',
     flexShrink: 1, // Garde le texte sur une seule ligne
+  },
+  referenceTitleWhite: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: 'white',
+    flexShrink: 1, // Garde le texte sur une seule ligne
+    marginLeft:10,
   },
   separator: {
     height: 1,
@@ -530,15 +882,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
-
-
   
   safeArea: {
     flex: 1,
     backgroundColor: 'transparent',
   },
   headerSection: {
-    flex: 0.7,
     paddingTop: 10,
     backgroundColor: 'transparent',
   },
@@ -550,17 +899,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'stretch',
-    marginBottom: 4,
-    marginLeft: 10,
-    marginRight: 10,
-    height: 50,
+    marginTop: 5,
   },
   filterButton: {
-    backgroundColor: 'transparent',
+    backgroundColor: '#3A3FD4',
     marginHorizontal: 4,
     borderRadius: 8,
-    borderWidth:1,
-    borderColor:'#98FFBF',
+    //borderWidth:1,
+    //borderColor:'#98FFBF',
     paddingVertical: 10,
     paddingHorizontal: 5,
     justifyContent: 'center',
@@ -578,10 +924,9 @@ const styles = StyleSheet.create({
     
   },
   indicatorsWrapper: {
-    height: 200,
     overflow: 'hidden',
-    marginTop: 8,
-    
+    marginTop: 6,
+    marginBottom:8,
   },
   indicatorsContainer: {
     flexDirection: 'row',
@@ -658,16 +1003,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#3A3FD4',
   },
-  closeButton: {
-    marginTop: 16,
-    padding: 10,
-    backgroundColor: '#3A3FD4',
-    borderRadius: 8,
-  },
-  closeButtonText: {
-    color: 'white',
-    fontSize: 14,
-  },
   referencesSection: {
     flex: 1,
     padding: 1,
@@ -678,6 +1013,15 @@ const styles = StyleSheet.create({
     paddingLeft:8,
     paddingRight:8,
     backgroundColor: '#98FFBF',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginLeft: 8,
+  },
+  closeButtonTopClearBack: {
+    padding: 4,
+    paddingLeft:8,
+    paddingRight:8,
+    backgroundColor: '#2B26BF',
     borderRadius: 8,
     alignSelf: 'flex-start',
     marginLeft: 8,
@@ -701,22 +1045,43 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
+    width:200,
+    alignSelf:'center',
+    margin:10,
   },
   loadMoreText: {
     color: 'white',
     fontWeight: 'bold',
     fontSize: 14,
+    alignSelf:'center',
+    width:100,
   },
   rankingContainer: {
     alignItems: 'center',
     borderRadius: 8,
+    paddingVertical:5,
   },
   rankingText: {
     fontSize: 14,
     fontWeight: 'bold',
     color: '#3A3FD4',
   },
+  selectedModalOption: {
+    backgroundColor: '#2B26BF', // Bleu pour l'option sélectionnée
+  },
+  selectedModalOptionText: {
+    color: 'white', // Texte blanc pour l'option sélectionnée
+    fontWeight: 'bold',
+  },
+  headerContainer: {
+    flexDirection: 'row',  // Aligne horizontalement
+    alignItems: 'center',  // Centre verticalement
+    //justifyContent: 'space-between',  // Espacement entre les éléments
+    paddingHorizontal: 10,  // Espacement sur les côtés
+    marginBottom: 10, // Espacement sous la section
+  },
 });
 
 
 export default AppPage;
+
