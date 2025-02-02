@@ -40,22 +40,16 @@ export const fetchColumnsByType = async (): Promise<void> => {
     periode = groupedColumns['Période'] || [];
     indicateur = groupedColumns['Indicateur'] || [];
     circuit = groupedColumns['Circuit'] || [];
-    segmentation = groupedColumns['Segmentation'] || [];
-
-    console.log('Colonnes initialisées :', {
-      periode,
-      circuit,
-      denominationProduit,
-    });
+    segmentation = ['Aucun filtre', ...(groupedColumns['Segmentation'] || [])];
 
     // Charger les valeurs uniques pour "Période" et "Circuit"
     if (periode[0]) {
       valeurPeriodes = await fetchUniqueValues(periode[0]);
-      console.log('Valeurs pour Périodes :', valeurPeriodes);
+      //console.log('Valeurs pour Périodes :', valeurPeriodes);
     }
     if (circuit[0]) {
       valeurcircuit = await fetchUniqueValues(circuit[0]);
-      console.log('Valeurs pour Circuit :', valeurcircuit);
+      //console.log('Valeurs pour Circuit :', valeurcircuit);
     }
   } catch (error) {
     console.error('Erreur lors de la récupération des colonnes :', error);
@@ -65,7 +59,7 @@ export const fetchColumnsByType = async (): Promise<void> => {
 // Appeler la fonction immédiatement pour initialiser les variables au chargement du fichier
 fetchColumnsByType().then(() => {
   // Les variables sont initialisées ici
-  console.log('Valeurs après initialisation :');
-  console.log('Périodes :', valeurPeriodes);
-  console.log('Circuits :', valeurcircuit);
+  //console.log('Valeurs après initialisation :');
+  //console.log('Périodes :', valeurPeriodes);
+  //console.log('Circuits :', valeurcircuit);
 });
