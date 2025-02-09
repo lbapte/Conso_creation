@@ -374,3 +374,177 @@ export const fetchReferencesWithIndicators = async (
   }
 };
 
+/**
+ * Récupéartion des valeurs unique pour le premier filtre
+@param segmentationColumn - La colonne utilisée pour la segmentation (ex: "Catégorie", "Marque").
+* @param segmentationValue - La valeur spécifique de cette colonne (ex: "Boissons", "Coca-Cola").
+* @returns Liste des références correspondant à cette valeur de segmentation.
+*/
+export const fetchUniqueValuesBySegmentation = async (
+  column: string,
+  advancedFilter?: { column: string; operator: string; value: string } | null
+): Promise<string[]> => {
+  try {
+    const db = await initializeDatabase();
+    if (!db) throw new Error("Base de données non initialisée");
+
+    let query = `SELECT DISTINCT ${column} FROM data WHERE 1=1`;
+    const params: any[] = [];
+    if (advancedFilter) {
+      query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+      params.push(advancedFilter.value);
+    }
+
+    const results = await db.getAllAsync(query, params);
+    return results.map(row => row[column]).filter(Boolean);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des valeurs uniques :", error);
+    return [];
+  }
+};
+
+
+//récupération des valeurs uniques de filtre pour le deuxème niveau de liste et avec pour filtre la valeur du premier filtre
+
+export const fetchUniqueValuesForSubFilter = async (
+  column: string,            // Colonne ciblée du 2ᵉ niveau
+  parentColumn: string,      // Colonne du 1er niveau
+  parentValue: string,       // Valeur du 1er niveau
+  advancedFilter?: { column: string; operator: string; value: string } | null
+): Promise<string[]> => {
+  try {
+    const db = await initializeDatabase();
+    if (!db) throw new Error("Base de données non initialisée");
+
+    // Requête de base sur le parent
+    let query = `SELECT DISTINCT ${column} FROM data WHERE ${parentColumn} = ?`;
+    const params: any[] = [parentValue];
+
+    // Ajout du filtre avancé s'il est défini
+    if (advancedFilter) {
+      query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+      params.push(advancedFilter.value);
+    }
+
+    const results = await db.getAllAsync(query, params);
+    return results.map(row => row[column]).filter(Boolean);
+  } catch (error) {
+    console.error("❌ Erreur lors de la récupération des valeurs uniques pour le sous-filtre :", error);
+    return [];
+  }
+};
+
+export const fetchUniqueValuesForThirdFilter = async (
+  column: string,            // Colonne ciblée du 3ᵉ niveau
+  parentColumn1: string,     // Colonne du 1er niveau
+  parentValue1: string,      // Valeur du 1er niveau
+  parentColumn2: string,     // Colonne du 2ᵉ niveau
+  parentValue2: string,      // Valeur du 2ᵉ niveau
+  advancedFilter?: { column: string; operator: string; value: string } | null
+): Promise<string[]> => {
+  try {
+    const db = await initializeDatabase();
+    if (!db) throw new Error("Base de données non initialisée");
+
+    // Requête de base sur le 1er et 2ᵉ niveau
+    let query = `SELECT DISTINCT ${column} FROM data WHERE ${parentColumn1} = ? AND ${parentColumn2} = ?`;
+    const params: any[] = [parentValue1, parentValue2];
+
+    // Ajout du filtre avancé s'il est défini
+    if (advancedFilter) {
+      query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+      params.push(advancedFilter.value);
+    }
+
+    const results = await db.getAllAsync(query, params);
+    return results.map(row => row[column]).filter(Boolean);
+  } catch (error) {
+    console.error("❌ Erreur lors de la récupération des valeurs uniques pour le 3ᵉ niveau :", error);
+    return [];
+  }
+};
+
+//retourne la liste unique des références avec les différents filtres en place pour la page explore
+export const fetchUniqueValuesForReferences = async (
+  referenceColumn: string,   // Colonne des références (ex. denominationProduit[0])
+  parentColumn1: string,     // Colonne du 1er niveau
+  parentValue1: string,      // Valeur du 1er niveau
+  parentColumn2: string,     // Colonne du 2ᵉ niveau
+  parentValue2: string,      // Valeur du 2ᵉ niveau
+  parentColumn3: string,     // Colonne du 3ᵉ niveau
+  parentValue3: string,      // Valeur du 3ᵉ niveau
+  advancedFilter?: { column: string; operator: string; value: string } | null
+): Promise<string[]> => {
+  try {
+    const db = await initializeDatabase();
+    if (!db) throw new Error("Base de données non initialisée");
+
+    // Requête de base sur les trois niveaux
+    let query = `SELECT DISTINCT ${referenceColumn} FROM data WHERE ${parentColumn1} = ? AND ${parentColumn2} = ? AND ${parentColumn3} = ?`;
+    const params: any[] = [parentValue1, parentValue2, parentValue3];
+
+    // Ajout du filtre avancé s'il est défini
+    if (advancedFilter) {
+      query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+      params.push(advancedFilter.value);
+    }
+
+    const results = await db.getAllAsync(query, params);
+    return results.map(row => row[referenceColumn]).filter(Boolean);
+  } catch (error) {
+    console.error("❌ Erreur lors de la récupération des références :", error);
+    return [];
+  }
+};
+
+//retourne la liste des référence lorsque deux filtres sont activés
+export const fetchUniqueValuesForReferencesOne = async (
+  referenceColumn: string,         // ex. denominationProduit[0]
+  parentColumn: string,            // correspond à selectedFilters[0]
+  parentValue: string,
+  advancedFilter?: { column: string; operator: string; value: string } | null
+): Promise<string[]> => {
+  try {
+    const db = await initializeDatabase();
+    if (!db) throw new Error("Base de données non initialisée");
+    let query = `SELECT DISTINCT ${referenceColumn} FROM data WHERE ${parentColumn} = ?`;
+    const params: any[] = [parentValue];
+    if (advancedFilter) {
+      query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+      params.push(advancedFilter.value);
+    }
+    const results = await db.getAllAsync(query, params);
+    return results.map(row => row[referenceColumn]).filter(Boolean);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des références (1 filtre):", error);
+    return [];
+  }
+};
+
+
+//retourne la liste des référence lorsque un seul filtre est activé
+export const fetchUniqueValuesForReferencesTwo = async (
+  referenceColumn: string,         // ex. denominationProduit[0]
+  parentColumn1: string,           // correspond à selectedFilters[0]
+  parentValue1: string,
+  parentColumn2: string,           // correspond à selectedFilters[1]
+  parentValue2: string,
+  advancedFilter?: { column: string; operator: string; value: string } | null
+): Promise<string[]> => {
+  try {
+    const db = await initializeDatabase();
+    if (!db) throw new Error("Base de données non initialisée");
+    let query = `SELECT DISTINCT ${referenceColumn} FROM data WHERE ${parentColumn1} = ? AND ${parentColumn2} = ?`;
+    const params: any[] = [parentValue1, parentValue2];
+    if (advancedFilter) {
+      query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+      params.push(advancedFilter.value);
+    }
+    const results = await db.getAllAsync(query, params);
+    return results.map(row => row[referenceColumn]).filter(Boolean);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des références (2 filtres):", error);
+    return [];
+  }
+};
+
