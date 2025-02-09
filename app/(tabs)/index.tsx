@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { CameraView, CameraType, BarcodeScanningResult } from 'expo-camera';
 import {setupDatabase, insertBarcode, getBarcodes} from '../../utils/database';
-import { useNavigation } from '@react-navigation/native';
+import {initializeDatabase} from '../../utils/baseHistorique';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import HD from '../../assets/svg/haut_droit.svg';
 import HG from '../../assets/svg/haut-gauche.svg';
@@ -10,10 +11,8 @@ import BG from '../../assets/svg/bas_gauche.svg';
 import BD from '../../assets/svg/bas_droit.svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-
 //import ScanIndicator from "../assets/svg/HG.svgx";
-
-setupDatabase();
+initializeDatabase();
 
 export default function Scanner() {
   const [scanned, setScanned] = useState(false);
@@ -27,7 +26,16 @@ export default function Scanner() {
     insertBarcode(data);
     setTimeout(() => setScanned(false), 2000); // Mettre en pause le scan au bout de 2 secondes
     //navigation.navigate("historique");
+
+    useFocusEffect(
+      useCallback(() => {
+        setupDatabase();
+        initializeDatabase();
+      }, [])
+    );
   };
+
+  
 
   return (
     <SafeAreaView style={styles.container}>

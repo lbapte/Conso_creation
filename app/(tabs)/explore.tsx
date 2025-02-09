@@ -28,6 +28,10 @@ import {
   fetchUniqueValuesForReferencesTwo,
   fetchUniqueValues,
 } from '../../utils/database';
+import {
+  insertHistoriqueEntry,
+  createHistoriqueTable
+} from '../../utils/baseHistorique';
 import ModalPage from '../resultat';
 
 // Par défaut, on utilise la deuxième valeur de segmentation pour le filtre principal.
@@ -127,6 +131,7 @@ const SegmentationPage = () => {
 
   // Récupération des options pour circuit et période dès le montage
   useEffect(() => {
+    createHistoriqueTable();
     const fetchOptions = async () => {
       try {
         const circuitRes = await fetchUniqueValues(circuit[0]);
@@ -317,9 +322,10 @@ const SegmentationPage = () => {
   };
 
   // Fonction de gestion du clic sur une référence pour ouvrir la modale et afficher le codeEAN
-  const handleReferenceClick = (ean: string) => {
+  const handleReferenceClick = (ean: string, reference:string,) => {
     setSelectedEan(ean);
     setRefModalVisible(true);
+    insertHistoriqueEntry(reference,ean,'recherche');
   };
 
   const closeRefModal = () => {
@@ -382,7 +388,7 @@ const SegmentationPage = () => {
                       renderItem={({ item: referenceItem }) => (
                         <TouchableOpacity
                           style={styles.referenceItem}
-                          onPress={() => handleReferenceClick(referenceItem.codeEAN)}
+                          onPress={() => handleReferenceClick(referenceItem.codeEAN,referenceItem.intitule)}
                         >
                           <Text>{referenceItem.intitule}</Text>
                         </TouchableOpacity>
@@ -428,7 +434,7 @@ const SegmentationPage = () => {
                                   renderItem={({ item: referenceItem }) => (
                                     <TouchableOpacity
                                       style={styles.referenceItem}
-                                      onPress={() => handleReferenceClick(referenceItem.codeEAN)}
+                                      onPress={() => handleReferenceClick(referenceItem.codeEAN,referenceItem.intitule)}
                                     >
                                       <Text>{referenceItem.intitule}</Text>
                                     </TouchableOpacity>
@@ -492,7 +498,7 @@ const SegmentationPage = () => {
                                               renderItem={({ item: referenceItem }) => (
                                                 <TouchableOpacity
                                                   style={styles.referenceItem}
-                                                  onPress={() => handleReferenceClick(referenceItem.codeEAN)}
+                                                  onPress={() => handleReferenceClick(referenceItem.codeEAN,referenceItem.intitule)}
                                                 >
                                                   <Text>{referenceItem.intitule}</Text>
                                                 </TouchableOpacity>

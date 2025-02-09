@@ -43,7 +43,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const [isAdvancedFilterEnabled, setIsAdvancedFilterEnabled] = useState(false);
   const [advancedFilterModalVisible, setAdvancedFilterModalVisible] = useState(false);
 
-  const [showDetailedIndicators, setShowDetailedIndicators] = useState(false); //gère l'affichage des partie moyennes et basses des indicateurs en header
+  const [showDetailedIndicators, setShowDetailedIndicators] = useState(true); //gère l'affichage des partie moyennes et basses des indicateurs en header
   const baseIndicatorHeight = 80; // Hauteur de base pour le titre et la valeur dans la partie header
   const expandedIndicatorHeight = 140; // Hauteur complète avec détails
   
