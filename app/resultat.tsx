@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,Modal, TextInput} from 'react-native';
+import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,Modal, TextInput, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { codeEAN, circuit, periode, indicateur, valeurPeriodes, valeurcircuit,segmentation,denominationProduit } from '../utils/columnConfig';
 import { fetchDataByDynamicColumns,fetchReferences, fetchFilteredColumnValue,fetchReferencesWithIndicators } from '../utils/database';
@@ -485,91 +485,96 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       </Modal>
 
       <Modal
-        visible={advancedFilterModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setAdvancedFilterModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
+  visible={advancedFilterModalVisible}
+  transparent
+  animationType="slide"
+  onRequestClose={() => setAdvancedFilterModalVisible(false)}
+>
+  <KeyboardAvoidingView
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    style={styles.modalContainer}
+  >
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.modalContent}>
+        
+        {/* Bouton Fermer en haut à gauche */}
+        <TouchableOpacity style={styles.closeButtonTopClearBack} onPress={() => setAdvancedFilterModalVisible(false)}>
+          <Text style={styles.closeButtonText}>Fermer</Text>
+        </TouchableOpacity>
 
-            {/* Bouton Fermer en haut à gauche */}
-            <TouchableOpacity style={styles.closeButtonTopClearBack} onPress={() => setAdvancedFilterModalVisible(false)}>
-              <Text style={styles.closeButtonText}>Fermer</Text>
+        {/* Sélectionner l'indicateur */}
+        <Text style={styles.modalLabel}>Indicateur</Text>
+        <FlatList
+          data={indicateur}
+          keyExtractor={(item, index) => index.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[
+                styles.modalOption,
+                advancedFilter.indicator === item && styles.selectedModalOption,
+              ]}
+              onPress={() => handleAdvancedFilterSelect('indicator', item)}
+            >
+              <Text
+                style={[
+                  styles.modalOptionText,
+                  advancedFilter.indicator === item && styles.selectedModalOptionText,
+                ]}
+              >
+                {item}
+              </Text>
             </TouchableOpacity>
+          )}
+        />
 
-            {/* Sélectionner l'indicateur */}
-            <Text style={styles.modalLabel}>Indicateur</Text>
-            <FlatList
-              data={indicateur}
-              keyExtractor={(item, index) => index.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.modalOption,
-                    advancedFilter.indicator === item && styles.selectedModalOption,
-                  ]}
-                  onPress={() => handleAdvancedFilterSelect('indicator', item)}
-                >
-                  <Text
-                    style={[
-                      styles.modalOptionText,
-                      advancedFilter.indicator === item && styles.selectedModalOptionText,
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            />
-
-            {/* Sélectionner l'opérateur (en ligne) */}
-            <Text style={styles.modalLabel}>Opérateur</Text>
-            <View style={styles.operatorsContainer}>
-              {['=', '>=', '<=', '>', '<'].map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={[
-                    styles.operatorButton,
-                    advancedFilter.operator === item && styles.selectedOperator,
-                  ]}
-                  onPress={() => handleAdvancedFilterSelect('operator', item)}
-                >
-                  <Text
-                    style={[
-                      styles.operatorText,
-                      advancedFilter.operator === item && styles.selectedOperatorText,
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Saisie de la valeur */}
-            <Text style={styles.modalLabel}>Valeur</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              placeholder="Entrer une valeur"
-              value={advancedFilter.value}
-              onChangeText={(text) => handleAdvancedFilterSelect('value', text)}
-            />
-
-            {/* Boutons d'action (Appliquer & Réinitialiser bien alignés) */}
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.applyButton} onPress={applyAdvancedFilter}>
-                <Text style={styles.applyButtonText}>Appliquer</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.resetButton} onPress={resetAdvancedFilter}>
-                <Text style={styles.resetButtonText}>Réinitialiser</Text>
-              </TouchableOpacity>
-            </View>
-
-          </View>
+        {/* Sélectionner l'opérateur (en ligne) */}
+        <Text style={styles.modalLabel}>Opérateur</Text>
+        <View style={styles.operatorsContainer}>
+          {['=', '>=', '<=', '>', '<'].map((item) => (
+            <TouchableOpacity
+              key={item}
+              style={[
+                styles.operatorButton,
+                advancedFilter.operator === item && styles.selectedOperator,
+              ]}
+              onPress={() => handleAdvancedFilterSelect('operator', item)}
+            >
+              <Text
+                style={[
+                  styles.operatorText,
+                  advancedFilter.operator === item && styles.selectedOperatorText,
+                ]}
+              >
+                {item}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
-      </Modal>
+
+        {/* Saisie de la valeur */}
+        <Text style={styles.modalLabel}>Valeur</Text>
+        <TextInput
+          style={styles.input}
+          keyboardType="numeric"
+          placeholder="Entrer une valeur"
+          value={advancedFilter.value}
+          onChangeText={(text) => handleAdvancedFilterSelect('value', text)}
+        />
+
+        {/* Boutons d'action (Appliquer & Réinitialiser bien alignés) */}
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={styles.applyButton} onPress={applyAdvancedFilter}>
+            <Text style={styles.applyButtonText}>Appliquer</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.resetButton} onPress={resetAdvancedFilter}>
+            <Text style={styles.resetButtonText}>Réinitialiser</Text>
+          </TouchableOpacity>
+        </View>
+
+      </View>
+    </TouchableWithoutFeedback>
+  </KeyboardAvoidingView>
+</Modal>
 
 
       {/* Zone 3 : Liste des références */}

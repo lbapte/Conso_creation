@@ -1,5 +1,6 @@
 // SegmentationPage.tsx
 import React, { useState, useEffect } from 'react';
+import { FontAwesome } from '@expo/vector-icons';
 import {
   View,
   Text,
@@ -9,9 +10,14 @@ import {
   Modal,
   ScrollView,
   TextInput,
+  TouchableWithoutFeedback,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  fetchColumnsByType,
   segmentation,
   denominationProduit,
   indicateur,
@@ -39,7 +45,7 @@ const defaultFilter =
   segmentation && segmentation.length > 1 ? segmentation[1] : 'DefaultColumn';
 
 const SegmentationPage = () => {
-  // États pour les filtres classiques
+  // États pour les filtres "classiques" (F1, F2, F3)
   const [modalVisible, setModalVisible] = useState(false);
   const [currentFilterIndex, setCurrentFilterIndex] = useState<number | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<string[]>([
@@ -52,35 +58,44 @@ const SegmentationPage = () => {
   const [dynamicData, setDynamicData] = useState<{ [key: string]: any[] }>({});
   const [filteredData, setFilteredData] = useState<string[]>([]);
 
-  // États pour le filtre avancé
-  const [advancedFilter, setAdvancedFilter] = useState<{
-    column: string;
-    operator: string;
-    value: string;
-    circuit?: string;
-    period?: string;
-  } | null>(null);
-  const [advancedFilterModalVisible, setAdvancedFilterModalVisible] = useState(false);
+  // États pour la partie "avancée"
   const [advancedIndicateur, setAdvancedIndicateur] = useState('');
   const [advancedSegmentation, setAdvancedSegmentation] = useState('');
   const [advancedOperator, setAdvancedOperator] = useState('');
   const [advancedValue, setAdvancedValue] = useState('');
-  // États pour les sélections de circuit et période
   const [selectedCircuit, setSelectedCircuit] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
+
+  // Filtre avancé final appliqué (contient désormais un champ "type")
+  const [advancedFilter, setAdvancedFilter] = useState<{
+    column: string;
+    operator: string;
+    value: string;
+    type: string;   // <-- pour savoir si on cast ou pas
+    circuit?: string;
+    period?: string;
+  } | null>(null);
+
+  // Options pour circuit et période
   const [circuitOptions, setCircuitOptions] = useState<string[]>([]);
   const [periodeOptions, setPeriodeOptions] = useState<string[]>([]);
 
-  // États pour la modale de référence (lors du clic sur une ref)
+  // Modale de référence (clic sur une ref)
   const [selectedEan, setSelectedEan] = useState<string | null>(null);
   const [refModalVisible, setRefModalVisible] = useState(false);
 
-  // Fonction d'alignement/décalage des filtres
-  // Selon vos règles :
-  // - Si on sélectionne une valeur non "Aucun filtre" dans F2 ou F3 et que le filtre précédent est "Aucun filtre",
-  //   la valeur se déplace vers la gauche.
-  // - Si F3 est sélectionné alors que F2 est "Aucun filtre", la valeur passe en F2 et F3 devient "Aucun filtre".
-  // - Si on sélectionne "Aucun filtre" dans F1 ou F2, on décale vers la gauche pour que les valeurs non vides se suivent.
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
+
+  // États pour l'autocomplétion (uniquement si segmentation)
+  const [autoCompleteOptions, setAutoCompleteOptions] = useState<any[]>([]);
+
+  const numericOperators = ['=', '>', '<'];
+  const textOperators = ['=', '!='];
+
+
+  // -----------------------------------
+  // SHIFT FILTERS & INIT
+  // -----------------------------------
   const shiftFilters = (index: number, newValue: string, filters: string[]): string[] => {
     let [F1, F2, F3] = filters;
     if (newValue !== 'Aucun filtre') {
@@ -103,7 +118,6 @@ const SegmentationPage = () => {
         }
       }
     } else {
-      // Si "Aucun filtre" est sélectionné, on décale vers la gauche
       if (index === 0) {
         F1 = F2;
         F2 = F3;
@@ -118,7 +132,6 @@ const SegmentationPage = () => {
     return [F1, F2, F3];
   };
 
-  // Mise à jour classique des filtres en appliquant shiftFilters
   const updateFilters = (column: string) => {
     if (currentFilterIndex !== null) {
       const updatedFilters = shiftFilters(currentFilterIndex, column, selectedFilters);
@@ -129,7 +142,10 @@ const SegmentationPage = () => {
     setModalVisible(false);
   };
 
-  // Récupération des options pour circuit et période dès le montage
+  useEffect(() => {
+    fetchColumnsByType();
+  }, []);
+
   useEffect(() => {
     createHistoriqueTable();
     const fetchOptions = async () => {
@@ -145,12 +161,13 @@ const SegmentationPage = () => {
     fetchOptions();
   }, []);
 
-  // Mise à jour du nombre de filtres actifs
   useEffect(() => {
     setActiveFilterCount(selectedFilters.filter(f => f !== 'Aucun filtre').length);
   }, [selectedFilters]);
 
-  // --- Fonctions d'accès aux sous-niveaux (inchangées) ---
+  // -----------------------------------
+  // FONCTIONS D'ACCÈS AUX SOUS-NIVEAUX
+  // -----------------------------------
   const fetchSubItems = async (parentValue: string) => {
     const compositeKey = `${selectedFilters[0]}-${parentValue}`;
     if (!dynamicData[compositeKey]) {
@@ -214,9 +231,8 @@ const SegmentationPage = () => {
           thirdValue,
           circuit[0],
           periode[0],
-          advancedFilter
+          advancedFilter,
         );
-        // On stocke ici le tableau d'objets { intitule, codeEAN }
         setDynamicData(prev => ({ ...prev, [compositeKey]: data }));
       } catch (error) {
         console.error('Erreur lors de la récupération des références (3 filtres) :', error);
@@ -224,7 +240,8 @@ const SegmentationPage = () => {
     }
   };
 
-  // Fonctions pour cas de 1 ou 2 filtres actifs
+  console.log(advancedFilter);
+
   const fetchReferencesForOneFilter = async (firstValue: string) => {
     const key = `ref1-${selectedFilters[0]}-${firstValue}`;
     if (!dynamicData[key]) {
@@ -245,12 +262,6 @@ const SegmentationPage = () => {
     }
   };
 
-  const toggleExpandReferences1 = (firstValue: string) => {
-    const key = `ref1-${selectedFilters[0]}-${firstValue}`;
-    setExpandedItems(prev => ({ ...prev, [key]: !prev[key] }));
-    fetchReferencesForOneFilter(firstValue);
-  };
-
   const fetchReferencesForTwoFilters = async (firstValue: string, secondValue: string) => {
     const key = `ref2-${selectedFilters[0]}-${firstValue}-${selectedFilters[1]}-${secondValue}`;
     if (!dynamicData[key]) {
@@ -262,6 +273,8 @@ const SegmentationPage = () => {
           firstValue,
           selectedFilters[1],
           secondValue,
+          circuit[0],
+          periode[0],
           advancedFilter
         );
         setDynamicData(prev => ({ ...prev, [key]: data }));
@@ -271,13 +284,21 @@ const SegmentationPage = () => {
     }
   };
 
+  // -----------------------------------
+  // TOGGLE DES LISTES HIÉRARCHIQUES
+  // -----------------------------------
+  const toggleExpandReferences1 = (firstValue: string) => {
+    const key = `ref1-${selectedFilters[0]}-${firstValue}`;
+    setExpandedItems(prev => ({ ...prev, [key]: !prev[key] }));
+    fetchReferencesForOneFilter(firstValue);
+  };
+
   const toggleExpandReferences2 = (firstValue: string, secondValue: string) => {
     const key = `ref2-${selectedFilters[0]}-${firstValue}-${selectedFilters[1]}-${secondValue}`;
     setExpandedItems(prev => ({ ...prev, [key]: !prev[key] }));
     fetchReferencesForTwoFilters(firstValue, secondValue);
   };
 
-  // Fonctions de dépliage pour la hiérarchie complète (cas de 3 filtres actifs)
   const toggleExpandFirst = (item: string) => {
     setExpandedItems(prev => ({ ...prev, [item]: !prev[item] }));
     fetchSubItems(item);
@@ -295,7 +316,9 @@ const SegmentationPage = () => {
     fetchReferenceItems(firstValue, secondValue, thirdValue);
   };
 
-  // Recharge le premier niveau dès que les filtres changent
+  // -----------------------------------
+  // RECHARGE DU PREMIER NIVEAU
+  // -----------------------------------
   useEffect(() => {
     const updateData = async () => {
       const data = await fetchUniqueValuesBySegmentation(selectedFilters[0], advancedFilter);
@@ -304,28 +327,93 @@ const SegmentationPage = () => {
     updateData();
   }, [selectedFilters, advancedFilter]);
 
-  // Application du filtre avancé.
+  // -----------------------------------
+  // LOGIQUE "AVANCÉE" : VALIDER / EFFACER
+  // -----------------------------------
   const applyAdvancedFilter = () => {
+    setShowAdvancedFilter(prev => !prev)
+    // Si c'est la segmentation qui est choisie, on force l'opérateur à '='
+    const finalOperator =
+  advancedOperator !== ''
+    ? advancedOperator
+    : (advancedSegmentation !== '' ? '=' : ''); 
     const effectiveColumn = advancedIndicateur !== '' ? advancedIndicateur : advancedSegmentation;
-    if (effectiveColumn && advancedOperator && advancedValue) {
-      setAdvancedFilter({ column: effectiveColumn, operator: advancedOperator, value: advancedValue });
+
+    if (effectiveColumn && finalOperator && advancedValue) {
+      // On détermine le type selon si on a un indicateur (integer) ou une segmentation (text)
+      const finalType: 'integer' | 'text' =
+        advancedIndicateur !== '' ? 'integer' : 'text';
+
+      setAdvancedFilter({
+        column: effectiveColumn,
+        operator: finalOperator,
+        value: advancedValue,
+        type: finalType,  // <-- important pour le cast ou pas
+        circuit: selectedCircuit,
+        period: selectedPeriod,
+      });
     } else {
+      // On enlève le filtre si tout n'est pas rempli
       setAdvancedFilter(null);
     }
+    setExpandedItems({});
+    setDynamicData({});
+  };
+
+  const clearAdvancedFilter = () => {
+    setAdvancedFilter(null);
     setAdvancedIndicateur('');
     setAdvancedSegmentation('');
     setAdvancedOperator('');
     setAdvancedValue('');
-    setExpandedItems({});
-    setDynamicData({});
-    setAdvancedFilterModalVisible(false);
+    setSelectedCircuit('');
+    setSelectedPeriod('');
+    setAutoCompleteOptions([]);
   };
 
-  // Fonction de gestion du clic sur une référence pour ouvrir la modale et afficher le codeEAN
-  const handleReferenceClick = (ean: string, reference:string,) => {
+  // -----------------------------------
+  // AUTOCOMPLÉTION
+  // -----------------------------------
+  useEffect(() => {
+    // On ne fait l'autocomplétion que si on est en mode segmentation
+    if (advancedSegmentation !== '') {
+      if (!advancedValue || advancedValue.trim() === '') {
+        setAutoCompleteOptions([]);
+        return;
+      }
+
+      const loadAutoComplete = async () => {
+        try {
+          const result = await fetchUniqueValues(advancedSegmentation);
+          const typed = advancedValue.toLowerCase();
+
+          const filtered = result.filter((row: any) => {
+            const val = row[advancedSegmentation];
+            if (!val) return false;
+            return val.toString().toLowerCase().includes(typed);
+          });
+
+          const top3 = filtered.slice(0, 3);
+          setAutoCompleteOptions(top3);
+        } catch (error) {
+          console.error('Erreur lors du fetchUniqueValues pour autocomplétion :', error);
+          setAutoCompleteOptions([]);
+        }
+      };
+
+      loadAutoComplete();
+    } else {
+      setAutoCompleteOptions([]);
+    }
+  }, [advancedValue, advancedSegmentation]);
+
+  // -----------------------------------
+  // CLIC SUR UNE RÉFÉRENCE
+  // -----------------------------------
+  const handleReferenceClick = (ean: string, reference: string) => {
     setSelectedEan(ean);
     setRefModalVisible(true);
-    insertHistoriqueEntry(reference,ean,'recherche');
+    insertHistoriqueEntry(reference, ean, 'recherche');
   };
 
   const closeRefModal = () => {
@@ -333,395 +421,703 @@ const SegmentationPage = () => {
     setSelectedEan(null);
   };
 
+  let operatorsToDisplay: string[] = [];
+  if (advancedIndicateur !== '') {
+    operatorsToDisplay = numericOperators;
+  } else if (advancedSegmentation !== '') {
+    operatorsToDisplay = textOperators;
+  }
+
+  // -----------------------------------
+  // RENDER
+  // -----------------------------------
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Filtres classiques */}
-      <ScrollView horizontal style={styles.filterContainer}>
-        {selectedFilters.map((filter, index) => (
+     <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <SafeAreaView style={styles.container}>
+
+          {/* Filtres classiques */}
+          <ScrollView horizontal style={styles.filterContainer}>
+            {selectedFilters.map((filter, index) => (
+              <TouchableOpacity
+                key={`filter-${index}`}
+                style={[
+                  styles.filterButton,
+                  filter === 'Aucun filtre' ? styles.inactiveFilter : styles.activeFilter,
+                ]}
+                onPress={() => {
+                  setCurrentFilterIndex(index);
+                  setModalVisible(true);
+                }}
+              >
+                <Text style={styles.filterText}>{filter}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Bouton pour afficher/masquer le filtre avancé */}
           <TouchableOpacity
-            key={`filter-${index}`}
-            style={[
-              styles.filterButton,
-              filter === 'Aucun filtre' ? styles.inactiveFilter : styles.activeFilter,
-            ]}
-            onPress={() => {
-              setCurrentFilterIndex(index);
-              setModalVisible(true);
-            }}
+            style={styles.toggleButton}
+            onPress={() => setShowAdvancedFilter(prev => !prev)}
           >
-            <Text style={styles.filterText}>{filter}</Text>
+            <Text style={styles.toggleButtonText}>
+              {showAdvancedFilter ? 'Masquer le filtre avancé' : 'Afficher le filtre avancé'}
+            </Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
 
-      {/* Bouton pour accéder au filtre avancé */}
-      <TouchableOpacity
-        style={styles.advancedFilterButton}
-        onPress={() => setAdvancedFilterModalVisible(true)}
-      >
-        <Text style={styles.advancedFilterButtonText}>
-          Filtre avancé{' '}
-          {advancedFilter
-            ? `appliqué : ${advancedFilter.column} ${advancedFilter.operator} ${advancedFilter.value}`
-            : ''}
-        </Text>
-      </TouchableOpacity>
+          {/* SECTION AVANCÉE : affichage conditionnel */}
+          {showAdvancedFilter && (
+            <View style={styles.advancedFilterContainer}>
+              <Text style={styles.advancedFilterTitle}>Filtre avancé</Text>
 
-      {/* Affichage conditionnel selon le nombre de filtres actifs */}
-      {activeFilterCount === 1 && (
-        <FlatList
-          data={filteredData}
-          keyExtractor={(item) => `level1-${item}`}
-          renderItem={({ item: firstItem }) => {
-            const key = `ref1-${selectedFilters[0]}-${firstItem}`;
-            return (
-              <View>
-                <TouchableOpacity style={styles.listItem} onPress={() => toggleExpandReferences1(firstItem)}>
-                  <Text>{firstItem}</Text>
-                </TouchableOpacity>
-                {expandedItems[key] &&
-                  dynamicData[key] &&
-                  dynamicData[key].length > 0 && (
-                    <FlatList
-                      data={dynamicData[key]}
-                      keyExtractor={(refItem, index) => `ref-${firstItem}-${index}`}
-                      renderItem={({ item: referenceItem }) => (
-                        <TouchableOpacity
-                          style={styles.referenceItem}
-                          onPress={() => handleReferenceClick(referenceItem.codeEAN,referenceItem.intitule)}
-                        >
-                          <Text>{referenceItem.intitule}</Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  )}
-              </View>
-            );
-          }}
-        />
-      )}
-
-      {activeFilterCount === 2 && (
-        <FlatList
-          data={filteredData}
-          keyExtractor={(item) => `level1-${item}`}
-          renderItem={({ item: firstItem }) => {
-            const compositeKey1 = `${selectedFilters[0]}-${firstItem}`;
-            return (
-              <View>
-                <TouchableOpacity style={styles.listItem} onPress={() => toggleExpandFirst(firstItem)}>
-                  <Text>{firstItem}</Text>
-                </TouchableOpacity>
-                {expandedItems[firstItem] &&
-                  dynamicData[compositeKey1] &&
-                  dynamicData[compositeKey1].length > 0 && (
-                    <FlatList
-                      data={dynamicData[compositeKey1]}
-                      keyExtractor={(item, index) => `level2-${firstItem}-${index}`}
-                      renderItem={({ item: secondItem }) => {
-                        const key = `ref2-${selectedFilters[0]}-${firstItem}-${selectedFilters[1]}-${secondItem}`;
-                        return (
-                          <View>
-                            <TouchableOpacity style={styles.subListItem} onPress={() => toggleExpandReferences2(firstItem, secondItem)}>
-                              <Text>{secondItem}</Text>
-                            </TouchableOpacity>
-                            {expandedItems[key] &&
-                              dynamicData[key] &&
-                              dynamicData[key].length > 0 && (
-                                <FlatList
-                                  data={dynamicData[key]}
-                                  keyExtractor={(refItem, index) => `ref-${firstItem}-${secondItem}-${index}`}
-                                  renderItem={({ item: referenceItem }) => (
-                                    <TouchableOpacity
-                                      style={styles.referenceItem}
-                                      onPress={() => handleReferenceClick(referenceItem.codeEAN,referenceItem.intitule)}
-                                    >
-                                      <Text>{referenceItem.intitule}</Text>
-                                    </TouchableOpacity>
-                                  )}
-                                />
-                              )}
-                          </View>
-                        );
-                      }}
-                    />
-                  )}
-              </View>
-            );
-          }}
-        />
-      )}
-
-      {activeFilterCount >= 3 && (
-        <FlatList
-          data={filteredData}
-          keyExtractor={(item) => `level1-${item}`}
-          renderItem={({ item: firstItem }) => {
-            const compositeKey1 = `${selectedFilters[0]}-${firstItem}`;
-            return (
-              <View>
-                <TouchableOpacity style={styles.listItem} onPress={() => toggleExpandFirst(firstItem)}>
-                  <Text>{firstItem}</Text>
-                </TouchableOpacity>
-                {expandedItems[firstItem] &&
-                  dynamicData[compositeKey1] &&
-                  dynamicData[compositeKey1].length > 0 && (
-                    <FlatList
-                      data={dynamicData[compositeKey1]}
-                      keyExtractor={(item, index) => `level2-${firstItem}-${index}`}
-                      renderItem={({ item: secondItem }) => {
-                        const compositeKey2 = `${selectedFilters[0]}-${firstItem}-${selectedFilters[1]}-${secondItem}`;
-                        return (
-                          <View>
-                            <TouchableOpacity style={styles.subListItem} onPress={() => toggleExpandSecond(firstItem, secondItem)}>
-                              <Text>{secondItem}</Text>
-                            </TouchableOpacity>
-                            {expandedItems[compositeKey2] &&
-                              dynamicData[compositeKey2] &&
-                              dynamicData[compositeKey2].length > 0 && (
-                                <FlatList
-                                  data={dynamicData[compositeKey2]}
-                                  keyExtractor={(item, index) => `level3-${firstItem}-${secondItem}-${index}`}
-                                  renderItem={({ item: thirdItem }) => {
-                                    const compositeKeyRef = `${selectedFilters[0]}-${firstItem}-${selectedFilters[1]}-${secondItem}-${selectedFilters[2]}-${thirdItem}`;
-                                    return (
-                                      <View>
-                                        <TouchableOpacity style={styles.thirdListItem} onPress={() => toggleExpandReference(firstItem, secondItem, thirdItem)}>
-                                          <Text>{thirdItem}</Text>
-                                        </TouchableOpacity>
-                                        {expandedItems[compositeKeyRef] &&
-                                          dynamicData[compositeKeyRef] &&
-                                          dynamicData[compositeKeyRef].length > 0 && (
-                                            <FlatList
-                                              data={dynamicData[compositeKeyRef]}
-                                              keyExtractor={(item, index) => `ref-${firstItem}-${secondItem}-${thirdItem}-${index}`}
-                                              renderItem={({ item: referenceItem }) => (
-                                                <TouchableOpacity
-                                                  style={styles.referenceItem}
-                                                  onPress={() => handleReferenceClick(referenceItem.codeEAN,referenceItem.intitule)}
-                                                >
-                                                  <Text>{referenceItem.intitule}</Text>
-                                                </TouchableOpacity>
-                                              )}
-                                            />
-                                          )}
-                                      </View>
-                                    );
-                                  }}
-                                />
-                              )}
-                          </View>
-                        );
-                      }}
-                    />
-                  )}
-              </View>
-            );
-          }}
-        />
-      )}
-
-      {/* Modal de filtre classique */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Choisir une colonne</Text>
-            <FlatList
-              data={[...new Set(['Aucun filtre', ...segmentation])]}
-              keyExtractor={(item, index) => `option-${index}`}
-              renderItem={({ item }) => (
+              {/* 2 boutons : Indicateur ou Segmentation */}
+              <View style={styles.selectionButtonsContainer}>
                 <TouchableOpacity
-                  style={[
-                    styles.modalOption,
-                    currentFilterIndex !== null &&
-                      item === selectedFilters[currentFilterIndex] &&
-                      styles.selectedOption,
-                  ]}
-                  onPress={() => updateFilters(item)}
+                  style={[styles.selectionButton, advancedIndicateur !== '' && styles.selectedButton]}
+                  onPress={() => {
+                    // On vide la segmentation
+                    setAdvancedSegmentation('');
+                    setAutoCompleteOptions([]);
+                    // On définit un indicateur par défaut si possible
+                    if (indicateur.length > 0) {
+                      setAdvancedIndicateur(indicateur[0]);
+                    } else {
+                      setAdvancedIndicateur('');
+                    }
+                    // On remet l'opérateur à vide
+                    setAdvancedOperator('');
+                  }}
                 >
                   <Text
                     style={
-                      currentFilterIndex !== null &&
-                      item === selectedFilters[currentFilterIndex]
-                        ? styles.selectedOptionText
-                        : styles.modalOptionText
+                      advancedIndicateur !== '' ? styles.selectedButtonText : styles.buttonText
                     }
                   >
-                    {item}
+                    Indicateur
                   </Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.selectionButton, advancedSegmentation !== '' && styles.selectedButton]}
+                  onPress={() => {
+                    // On vide l'indicateur
+                    setAdvancedIndicateur('');
+                    setAutoCompleteOptions([]);
+                    // On définit une segmentation par défaut si possible
+                    if (segmentation.length > 0) {
+                      setAdvancedSegmentation(segmentation[0]);
+                    } else {
+                      setAdvancedSegmentation('');
+                    }
+                    // On remet l'opérateur à vide (l'utilisateur choisira = ou !=)
+                    setAdvancedOperator('');
+                  }}
+                >
+                  <Text
+                    style={
+                      advancedSegmentation !== '' ? styles.selectedButtonText : styles.buttonText
+                    }
+                  >
+                    Segmentation
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* SI INDICATEUR ACTIVÉ => liste des indicateurs */}
+              {advancedIndicateur !== '' && (
+                <>
+                  <Text style={styles.modalSubtitle}>Choix de l'indicateur</Text>
+                  <ScrollView
+                    horizontal
+                    style={styles.dropdown}
+                    showsHorizontalScrollIndicator={false}
+                  >
+                    {indicateur.map((col, i) => {
+                      const isSelected = advancedIndicateur === col;
+                      return (
+                        <TouchableOpacity
+                          key={`ind-${i}`}
+                          style={[styles.operatorButton, isSelected && styles.selectedOption]}
+                          onPress={() => setAdvancedIndicateur(col)}
+                        >
+                          <Text
+                            style={isSelected ? styles.selectedOptionText : styles.operatorText}
+                          >
+                            {col}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </>
               )}
-            />
-            <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
-              <Text style={styles.closeButtonText}>Fermer</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
-      {/* Modal du filtre avancé */}
-      <Modal
-        visible={advancedFilterModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setAdvancedFilterModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            {/* Bouton de fermeture en haut à gauche */}
-            <TouchableOpacity
-              style={styles.topLeftCloseButton}
-              onPress={() => setAdvancedFilterModalVisible(false)}
-            >
-              <Text style={styles.closeButtonText}>X</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitleCentered}>Filtre avancé</Text>
-            {/* Sélection de colonne parmi "indicateur" */}
-            <Text style={styles.modalSubtitle}>Indicateur</Text>
-            <ScrollView style={styles.dropdown}>
-              {indicateur.map((col, index) => (
-                <TouchableOpacity
-                  key={`ind-${index}`}
-                  style={[styles.dropdownItem, advancedIndicateur === col && styles.selectedOption]}
-                  onPress={() => { setAdvancedIndicateur(col); setAdvancedSegmentation(''); }}
-                >
-                  <Text style={advancedIndicateur === col ? styles.selectedOptionText : styles.modalOptionText}>{col}</Text>
+              {/* SI SEGMENTATION ACTIVÉ => liste des segmentations */}
+              {advancedSegmentation !== '' && (
+                <>
+                  <Text style={styles.modalSubtitle}>Choix de la segmentation</Text>
+                  <ScrollView
+                    horizontal
+                    style={styles.dropdown}
+                    showsHorizontalScrollIndicator={false}
+                  >
+                    {segmentation.map((col, i) => {
+                      const isSelected = advancedSegmentation === col;
+                      return (
+                        <TouchableOpacity
+                          key={`seg-${i}`}
+                          style={[styles.operatorButton, isSelected && styles.selectedOption]}
+                          onPress={() => setAdvancedSegmentation(col)}
+                        >
+                          <Text
+                            style={isSelected ? styles.selectedOptionText : styles.operatorText}
+                          >
+                            {col}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </>
+              )}
+
+              {/* Opérateurs => selon Indicateur ou Segmentation */}
+              {operatorsToDisplay.length > 0 && (
+                <>
+                  <Text style={styles.modalSubtitle}>Opérateur</Text>
+                  <ScrollView
+                    horizontal
+                    style={styles.operatorScrollContainer}
+                    contentContainerStyle={{ paddingHorizontal: 10 }}
+                    showsHorizontalScrollIndicator={false}
+                  >
+                    {operatorsToDisplay.map((op, index) => (
+                      <TouchableOpacity
+                        key={`op-${index}`}
+                        style={[
+                          styles.operatorButton,
+                          advancedOperator === op && styles.selectedOption,
+                        ]}
+                        onPress={() => setAdvancedOperator(op)}
+                      >
+                        <Text
+                          style={
+                            advancedOperator === op
+                              ? styles.selectedOptionText
+                              : styles.operatorText
+                          }
+                        >
+                          {op}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
+              {/* Valeur (clavier numeric si Indicateur, default si Segmentation) */}
+              <Text style={styles.modalSubtitle}>Valeur</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Entrez une valeur"
+                value={advancedValue}
+                onChangeText={text => setAdvancedValue(text)}
+                keyboardType={advancedIndicateur ? 'numeric' : 'default'}
+              />
+
+              {/* Autocomplétion si segmentation */}
+              {advancedSegmentation !== '' && autoCompleteOptions.length > 0 && (
+                <View style={styles.autoCompleteContainer}>
+                  {autoCompleteOptions.map((row, idx) => {
+                    const val = row[advancedSegmentation];
+                    return (
+                      <TouchableOpacity
+                        key={`auto-${idx}`}
+                        style={styles.autoCompleteItem}
+                        onPress={() => {
+                          setAdvancedValue(val);
+                          setAutoCompleteOptions([]);
+                        }}
+                      >
+                        <Text style={{ color: '#333' }}>{val}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Circuit + Période => seulement si Indicateur */}
+              {advancedIndicateur !== '' && (
+                <>
+                  <Text style={styles.modalSubtitle}>Circuit</Text>
+                  <ScrollView
+                    horizontal
+                    style={styles.dropdown}
+                    showsHorizontalScrollIndicator={false}
+                  >
+                    {circuitOptions.map((val, index) => (
+                      <TouchableOpacity
+                        key={`circ-${index}`}
+                        style={[
+                          styles.operatorButton,
+                          selectedCircuit === val && styles.selectedOption,
+                        ]}
+                        onPress={() => setSelectedCircuit(val)}
+                      >
+                        <Text
+                          style={
+                            selectedCircuit === val
+                              ? styles.selectedOptionText
+                              : styles.operatorText
+                          }
+                        >
+                          {val}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  <Text style={styles.modalSubtitle}>Période</Text>
+                  <ScrollView
+                    horizontal
+                    style={styles.dropdown}
+                    showsHorizontalScrollIndicator={false}
+                  >
+                    {periodeOptions.map((val, index) => (
+                      <TouchableOpacity
+                        key={`peri-${index}`}
+                        style={[
+                          styles.operatorButton,
+                          selectedPeriod === val && styles.selectedOption,
+                        ]}
+                        onPress={() => setSelectedPeriod(val)}
+                      >
+                        <Text
+                          style={
+                            selectedPeriod === val
+                              ? styles.selectedOptionText
+                              : styles.operatorText
+                          }
+                        >
+                          {val}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
+              {/* Boutons Effacer / Valider */}
+              <View style={styles.buttonRow}>
+                <TouchableOpacity style={styles.clearButton} onPress={clearAdvancedFilter}>
+                  <Text style={styles.buttonClearFinal}>Effacer</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-            {/* Sélection de colonne parmi "segmentation" */}
-            <Text style={styles.modalSubtitle}>Segmentation</Text>
-            <ScrollView style={styles.dropdown}>
-              {segmentation.map((col, index) => (
-                <TouchableOpacity
-                  key={`seg-${index}`}
-                  style={[styles.dropdownItem, advancedSegmentation === col && styles.selectedOption]}
-                  onPress={() => { setAdvancedSegmentation(col); setAdvancedIndicateur(''); }}
-                >
-                  <Text style={advancedSegmentation === col ? styles.selectedOptionText : styles.modalOptionText}>{col}</Text>
+                <TouchableOpacity style={styles.applyButton} onPress={applyAdvancedFilter}>
+                  <Text style={styles.buttonApplyFinal}>Valider</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-            {/* Sélection des opérateurs en ScrollView horizontal */}
-            <Text style={styles.modalSubtitle}>Opérateur</Text>
-            <ScrollView
-              horizontal
-              style={styles.operatorScrollContainer}
-              contentContainerStyle={{ paddingHorizontal: 10 }}
-              showsHorizontalScrollIndicator={false}
-            >
-              {['=', '>', '<', '>=', '<=', '<>'].map((op, index) => (
-                <TouchableOpacity
-                  key={`op-${index}`}
-                  style={[styles.operatorButton, advancedOperator === op && styles.selectedOption]}
-                  onPress={() => setAdvancedOperator(op)}
-                >
-                  <Text style={advancedOperator === op ? styles.selectedOptionText : styles.operatorText}>
-                    {op}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            {/* Saisie de la valeur */}
-            <Text style={styles.modalSubtitle}>Valeur</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Entrez une valeur"
-              value={advancedValue}
-              onChangeText={setAdvancedValue}
-            />
-            {/* Si la colonne choisie est un indicateur, afficher les options pour Circuit et Période */}
-            {advancedIndicateur !== '' && (
-              <>
-                <Text style={styles.modalSubtitle}>Circuit</Text>
-                <ScrollView horizontal style={styles.dropdown}>
-                  {circuitOptions.map((val, index) => (
-                    <TouchableOpacity
-                      key={`circ-${index}`}
-                      style={[styles.operatorButton, selectedCircuit === val && styles.selectedOption]}
-                      onPress={() => setSelectedCircuit(val)}
-                    >
-                      <Text style={selectedCircuit === val ? styles.selectedOptionText : styles.operatorText}>
-                        {val}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <Text style={styles.modalSubtitle}>Période</Text>
-                <ScrollView horizontal style={styles.dropdown}>
-                  {periodeOptions.map((val, index) => (
-                    <TouchableOpacity
-                      key={`peri-${index}`}
-                      style={[styles.operatorButton, selectedPeriod === val && styles.selectedOption]}
-                      onPress={() => setSelectedPeriod(val)}
-                    >
-                      <Text style={selectedPeriod === val ? styles.selectedOptionText : styles.operatorText}>
-                        {val}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </>
-            )}
-            {/* Boutons : Effacer, Valider, Fermer */}
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={styles.clearButton}
-                onPress={() => {
-                  setAdvancedFilter(null);
-                  setAdvancedIndicateur('');
-                  setAdvancedSegmentation('');
-                  setAdvancedOperator('');
-                  setAdvancedValue('');
-                  setSelectedCircuit('');
-                  setSelectedPeriod('');
-                }}
-              >
-                <Text style={styles.buttonText}>Effacer</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.applyButton} onPress={applyAdvancedFilter}>
-                <Text style={styles.buttonText}>Valider</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.closeButton} onPress={() => setAdvancedFilterModalVisible(false)}>
-                <Text style={styles.buttonText}>Fermer</Text>
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
-      </Modal>
+          )}
 
-      {/* Modal pour afficher la page résultat lorsque l'on clique sur une référence */}
-      <Modal
-        visible={refModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={closeRefModal}
-      >
-        {selectedEan && <ModalPage barcode={selectedEan} onClose={closeRefModal} />}
-      </Modal>
-    </SafeAreaView>
+          {/* LISTE DES RÉSULTATS (selon F1, F2, F3 + advancedFilter) */}
+          {activeFilterCount === 1 && (
+            <FlatList
+              data={filteredData}
+              keyExtractor={(item) => `level1-${item}`}
+              renderItem={({ item: firstItem }) => {
+                const key = `ref1-${selectedFilters[0]}-${firstItem}`;
+                return (
+                  <View>
+                    <TouchableOpacity
+                      style={styles.listItem}
+                      onPress={() => toggleExpandReferences1(firstItem)}
+                    >
+                      <View style={styles.chevronContainer}>
+                        <FontAwesome
+                          name={expandedItems[key] ? 'chevron-up' : 'chevron-down'}
+                          size={14}
+                          color="#2B26BF"
+                        />
+                      </View>
+                      <Text style={styles.TextList}>{firstItem}</Text>
+                    </TouchableOpacity>
+                    {expandedItems[key] &&
+                      dynamicData[key] &&
+                      dynamicData[key].length > 0 && (
+                        <FlatList
+                          data={dynamicData[key]}
+                          keyExtractor={(refItem, index) => `ref-${firstItem}-${index}`}
+                          renderItem={({ item: referenceItem }) => (
+                            <TouchableOpacity
+                              style={styles.referenceItem}
+                              onPress={() =>
+                                handleReferenceClick(referenceItem.codeEAN, referenceItem.intitule)
+                              }
+                            >
+                              <Text>{referenceItem.intitule}</Text>
+                              <View style={styles.separator} />
+                            </TouchableOpacity>
+                          )}
+                        />
+                      )}
+                  </View>
+                );
+              }}
+            />
+          )}
+
+          {activeFilterCount === 2 && (
+            <FlatList
+              data={filteredData}
+              keyExtractor={(item) => `level1-${item}`}
+              renderItem={({ item: firstItem }) => {
+                const compositeKey1 = `${selectedFilters[0]}-${firstItem}`;
+                return (
+                  <View>
+                    <TouchableOpacity style={styles.listItem} onPress={() => toggleExpandFirst(firstItem)}>
+                      <View style={styles.chevronContainer}>
+                        <FontAwesome
+                          name={expandedItems[firstItem] ? 'chevron-up' : 'chevron-down'}
+                          size={14}
+                          color="#2B26BF"
+                        />
+                      </View>
+                      <Text style={styles.TextList}>{firstItem}</Text>
+                    </TouchableOpacity>
+                    {expandedItems[firstItem] &&
+                      dynamicData[compositeKey1] &&
+                      dynamicData[compositeKey1].length > 0 && (
+                        <FlatList
+                          data={dynamicData[compositeKey1]}
+                          keyExtractor={(item, index) => `level2-${firstItem}-${index}`}
+                          renderItem={({ item: secondItem }) => {
+                            const key = `ref2-${selectedFilters[0]}-${firstItem}-${selectedFilters[1]}-${secondItem}`;
+                            return (
+                              <View>
+                                <TouchableOpacity
+                                  style={styles.subListItem}
+                                  onPress={() => toggleExpandReferences2(firstItem, secondItem)}
+                                >
+                                  <View style={styles.chevronContainer}>
+                                    <FontAwesome
+                                      name={expandedItems[key] ? 'chevron-up' : 'chevron-down'}
+                                      size={14}
+                                      color="#2B26BF"
+                                    />
+                                  </View>
+                                  <Text style={styles.TextList}>{secondItem}</Text>
+                                </TouchableOpacity>
+                                {expandedItems[key] &&
+                                  dynamicData[key] &&
+                                  dynamicData[key].length > 0 && (
+                                    <FlatList
+                                      data={dynamicData[key]}
+                                      keyExtractor={(refItem, index) =>
+                                        `ref-${firstItem}-${secondItem}-${index}`
+                                      }
+                                      renderItem={({ item: referenceItem }) => (
+                                        <TouchableOpacity
+                                          style={styles.referenceItem}
+                                          onPress={() =>
+                                            handleReferenceClick(
+                                              referenceItem.codeEAN,
+                                              referenceItem.intitule
+                                            )
+                                          }
+                                        >
+                                          <Text>{referenceItem.intitule}</Text>
+                                          <View style={styles.separator} />
+                                        </TouchableOpacity>
+                                      )}
+                                    />
+                                  )}
+                              </View>
+                            );
+                          }}
+                        />
+                      )}
+                  </View>
+                );
+              }}
+            />
+          )}
+
+          {activeFilterCount >= 3 && (
+            <FlatList
+              data={filteredData}
+              keyExtractor={(item) => `level1-${item}`}
+              renderItem={({ item: firstItem }) => {
+                const compositeKey1 = `${selectedFilters[0]}-${firstItem}`;
+                return (
+                  <View>
+                    <TouchableOpacity
+                      style={styles.listItem}
+                      onPress={() => toggleExpandFirst(firstItem)}
+                    >
+                      <FontAwesome
+                        name={expandedItems[firstItem] ? 'chevron-up' : 'chevron-down'}
+                        size={14}
+                        color="#2B26BF"
+                      />
+                      <Text style={styles.TextList}>{firstItem}</Text>
+                    </TouchableOpacity>
+                    {expandedItems[firstItem] &&
+                      dynamicData[compositeKey1] &&
+                      dynamicData[compositeKey1].length > 0 && (
+                        <FlatList
+                          data={dynamicData[compositeKey1]}
+                          keyExtractor={(item, index) => `level2-${firstItem}-${index}`}
+                          renderItem={({ item: secondItem }) => {
+                            const compositeKey2 = `${selectedFilters[0]}-${firstItem}-${selectedFilters[1]}-${secondItem}`;
+                            return (
+                              <View>
+                                <TouchableOpacity
+                                  style={styles.subListItem}
+                                  onPress={() => toggleExpandSecond(firstItem, secondItem)}
+                                >
+                                  <View style={styles.chevronContainer}>
+                                    <FontAwesome
+                                      name={expandedItems[compositeKey2] ? 'chevron-up' : 'chevron-down'}
+                                      size={14}
+                                      color="#2B26BF"
+                                    />
+                                  </View>
+                                  <Text style={styles.TextList}>{secondItem}</Text>
+                                </TouchableOpacity>
+                                {expandedItems[compositeKey2] &&
+                                  dynamicData[compositeKey2] &&
+                                  dynamicData[compositeKey2].length > 0 && (
+                                    <FlatList
+                                      data={dynamicData[compositeKey2]}
+                                      keyExtractor={(item, index) => `level3-${firstItem}-${secondItem}-${index}`}
+                                      renderItem={({ item: thirdItem }) => {
+                                        const compositeKeyRef = `${selectedFilters[0]}-${firstItem}-${selectedFilters[1]}-${secondItem}-${selectedFilters[2]}-${thirdItem}`;
+                                        return (
+                                          <View>
+                                            <TouchableOpacity
+                                              style={styles.thirdListItem}
+                                              onPress={() =>
+                                                toggleExpandReference(firstItem, secondItem, thirdItem)
+                                              }
+                                            >
+                                              <View style={styles.chevronContainer}>
+                                                <FontAwesome
+                                                  name={
+                                                    expandedItems[compositeKeyRef]
+                                                      ? 'chevron-up'
+                                                      : 'chevron-down'
+                                                  }
+                                                  size={14}
+                                                  color="#2B26BF"
+                                                />
+                                              </View>
+                                              <Text style={styles.TextList}>{thirdItem}</Text>
+                                            </TouchableOpacity>
+                                            {expandedItems[compositeKeyRef] &&
+                                              dynamicData[compositeKeyRef] &&
+                                              dynamicData[compositeKeyRef].length > 0 && (
+                                                <FlatList
+                                                  data={dynamicData[compositeKeyRef]}
+                                                  keyExtractor={(item, index) =>
+                                                    `ref-${firstItem}-${secondItem}-${thirdItem}-${index}`
+                                                  }
+                                                  renderItem={({ item: referenceItem }) => (
+                                                    <TouchableOpacity
+                                                      style={styles.referenceItem}
+                                                      onPress={() =>
+                                                        handleReferenceClick(
+                                                          referenceItem.codeEAN,
+                                                          referenceItem.intitule
+                                                        )
+                                                      }
+                                                    >
+                                                      <Text>{referenceItem.intitule}</Text>
+                                                      <View style={styles.separator} />
+                                                    </TouchableOpacity>
+                                                  )}
+                                                />
+                                              )}
+                                          </View>
+                                        );
+                                      }}
+                                    />
+                                  )}
+                              </View>
+                            );
+                          }}
+                        />
+                      )}
+                  </View>
+                );
+              }}
+            />
+          )}
+
+          {/* Modal de filtre classique (F1, F2, F3) */}
+          <Modal
+            visible={modalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setModalVisible(false)}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Choisir une colonne</Text>
+                <FlatList
+                  data={[...new Set(['Aucun filtre', ...segmentation])]}
+                  keyExtractor={(item, index) => `option-${index}`}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[
+                        styles.modalOption,
+                        currentFilterIndex !== null &&
+                          item === selectedFilters[currentFilterIndex] &&
+                          styles.selectedOption,
+                      ]}
+                      onPress={() => updateFilters(item)}
+                    >
+                      <Text
+                        style={
+                          currentFilterIndex !== null &&
+                          item === selectedFilters[currentFilterIndex]
+                            ? styles.selectedOptionText
+                            : styles.modalOptionText
+                        }
+                      >
+                        {item}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                />
+                <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
+                  <Text style={styles.closeButtonText}>Fermer</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Modal pour afficher la page résultat lors du clic sur une référence */}
+          <Modal
+            visible={refModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={closeRefModal}
+          >
+            {selectedEan && <ModalPage barcode={selectedEan} onClose={closeRefModal} />}
+          </Modal>
+        </SafeAreaView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
+export default SegmentationPage;
+
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 10,
+    backgroundColor: '#F5F5F5',
+  },
+  filterContainer: {
+    marginBottom: 10,
+    paddingVertical: 5,
+    maxHeight: 60,
+    minHeight: 60,
+  },
+  filterButton: {
+    padding: 10,
+    borderRadius: 8,
+    marginHorizontal: 5,
+  },
+  activeFilter: {
+    backgroundColor: '#3A3FD4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inactiveFilter: {
+    backgroundColor: '#C1C1C1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+
+  // --- Section avancée ---
+  advancedFilterContainer: {
+    backgroundColor: '#7579FF',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+  },
+  advancedFilterTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: 'white',
+    alignSelf:'center',
+  },
+  selectionButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 10,
+  },
+  selectionButton: {
+    flex: 1,
+    padding: 10,
+    backgroundColor: '#989AFF',
+    borderRadius: 8,
+    marginHorizontal: 5,
+    alignItems: 'center',
+    borderWidth:0,
+    borderColor:"white",
+
+  },
+  selectedButton: {
+    backgroundColor: '#3A3FD4',
+    borderWidth:0,
+  },
+  selectedButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  buttonText: {
+    color: 'black',
+  },
+  selectedButtonTextFinal: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  buttonApplyFinal: {
+    color: 'black',
+    fontWeight: 'bold',
+  },
+  buttonClearFinal: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+
   operatorScrollContainer: {
     width: '100%',
     marginBottom: 10,
   },
   operatorButton: {
     padding: 8,
-    borderWidth: 1,
-    borderColor: '#ccc',
+    backgroundColor:"#989AFF",
     borderRadius: 4,
     marginHorizontal: 2,
     minWidth: 50,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  operatorText: {
+    color: 'black',
   },
   selectedOption: {
     backgroundColor: '#3A3FD4',
@@ -731,65 +1127,105 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
-  operatorText: {
-    color: 'black',
-  },
-  container: {
-    flex: 1,
-    padding: 10,
-    backgroundColor: '#F5F5F5',
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    marginBottom: 10,
-    paddingVertical: 5,
-    maxHeight: 60,
-  },
-  filterButton: {
-    padding: 10,
-    borderRadius: 8,
-    marginHorizontal: 5,
-  },
-  activeFilter: {
-    backgroundColor: '#3A3FD4',
-  },
-  inactiveFilter: {
-    backgroundColor: '#E5E5E5',
-  },
-  filterText: {
+
+  modalSubtitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 10,
+    marginBottom: 5,
     color: 'white',
-    fontWeight: 'bold',
   },
-  filterCountText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginVertical: 10,
-    textAlign: 'center',
+  input: {
+    borderWidth: 1,
+    borderColor: '#989AFF',
+    width: '100%',
+    padding: 8,
+    borderRadius: 4,
+    marginBottom: 10,
+    backgroundColor: '#989AFF',
   },
-  listItem: {
+  dropdown: {
+    maxHeight: 80,
+    width: '100%',
+    marginBottom: 10,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 10,
+  },
+  applyButton: {
     padding: 10,
-    backgroundColor: '#E5E5E5',
-    marginVertical: 5,
+    backgroundColor: '#98FFBF',
     borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+  clearButton: {
+    padding: 10,
+    backgroundColor: '#3A3FD4',
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+
+  // --- Styles pour l'autocomplétion ---
+  autoCompleteContainer: {
+    backgroundColor: 'white',
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 4,
+    maxHeight: 150,
+    marginBottom: 10,
+  },
+  autoCompleteItem: {
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+
+  // --- Liste hiérarchique ---
+  listItem: {
+    flexDirection: 'row',
+    padding: 10,
+    margin: 5,
   },
   subListItem: {
-    padding: 8,
-    backgroundColor: '#D5D5D5',
+    flexDirection: 'row',
+    padding: 10,
+    paddingLeft: 20,
     marginLeft: 20,
-    borderRadius: 6,
+    borderRadius: 0,
+    margin: 5,
   },
   thirdListItem: {
-    padding: 6,
-    backgroundColor: '#C5C5C5',
+    flexDirection: 'row',
+    padding: 10,
+    paddingLeft: 40,
+    borderRadius: 0,
     marginLeft: 40,
-    borderRadius: 4,
+    margin: 5,
   },
   referenceItem: {
-    padding: 4,
-    backgroundColor: '#B5B5B5',
-    marginLeft: 60,
+    padding: 6,
+    marginTop: 5,
     borderRadius: 4,
   },
+  TextList: {},
+  chevronContainer: {
+    width: 15,
+    alignItems: 'center',
+    marginRight: 5,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#3A3FD4',
+    marginTop: 5,
+  },
+
+  // --- Modale "classique" (pour F1, F2, F3) ---
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -804,98 +1240,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
   },
-  topLeftCloseButton: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#3A3FD4',
-    borderRadius: 8,
-    zIndex: 10,
-  },
-  modalTitleCentered: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#3A3FD4',
-    width: '100%',
-    textAlign: 'center',
-  },
   modalTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 16,
     color: '#3A3FD4',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 10,
-    alignSelf: 'flex-start',
-  },
-  dropdown: {
-    maxHeight: 80,
-    width: '100%',
-    marginBottom: 10,
-  },
-  dropdownItem: {
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    width: '100%',
-    padding: 8,
-    borderRadius: 4,
-    marginBottom: 10,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-  },
-  applyButton: {
-    padding: 10,
-    backgroundColor: '#3A3FD4',
-    borderRadius: 8,
-    flex: 1,
-    marginHorizontal: 5,
-    alignItems: 'center',
-  },
-  clearButton: {
-    padding: 10,
-    backgroundColor: '#FF4444',
-    borderRadius: 8,
-    flex: 1,
-    marginHorizontal: 5,
-    alignItems: 'center',
-  },
-  closeButton: {
-    padding: 10,
-    backgroundColor: '#3A3FD4',
-    borderRadius: 8,
-    alignItems: 'center',
-    minWidth: 60,
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  advancedFilterButton: {
-    marginVertical: 10,
-    padding: 10,
-    backgroundColor: '#5A5A5A',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  advancedFilterButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
   },
   modalOption: {
     padding: 10,
@@ -909,10 +1258,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#3A3FD4',
   },
+  closeButton: {
+    padding: 10,
+    backgroundColor: '#3A3FD4',
+    borderRadius: 8,
+    alignItems: 'center',
+    minWidth: 60,
+  },
   closeButtonText: {
     color: 'white',
     fontSize: 14,
   },
+  toggleButton: {
+    padding: 10,
+    backgroundColor: 'transparent',
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth:1,
+    borderColor:'#3A3FD4',
+    alignItems: 'center',
+  },
+  toggleButtonText: {
+    color: 'black',
+    fontWeight: 'bold',
+  },
 });
-
-export default SegmentationPage;

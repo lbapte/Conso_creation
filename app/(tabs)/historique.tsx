@@ -5,6 +5,8 @@ import { getHistoriqueByEanAndType,deleteHistoriqueTable } from '../../utils/bas
 import ModalPage from '../resultat';
 import moment from 'moment';
 
+const mainPoliceSize = 14;
+
 const Historique = () => {
   const [historiqueList, setHistoriqueList] = useState<{ intitule: string; ean: string }[]>([]);
   const [selectedEan, setSelectedEan] = useState<string | null>(null);
@@ -66,7 +68,7 @@ const Historique = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.Header}>
-        <Text style={styles.title}>Références</Text>
+        <Text style={styles.title}>Historique</Text>
       </View>
       
       <View style={styles.filterContainer}>
@@ -121,7 +123,7 @@ const Historique = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'transparent' },
+  container: { flex: 1, padding: 16, backgroundColor: '#E9E9E9' },
   Header: { justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
   filterContainer: { alignItems: 'center', marginBottom: 10 },
   title: { fontSize: 24, fontWeight: 'bold', color: '#010A26' },
@@ -129,7 +131,7 @@ const styles = StyleSheet.create({
   filterButtonText: { color: 'white', fontWeight: 'bold' },
   Body: { flex: 8, backgroundColor: '#fff' },
   itemContainer: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#ccc' },
-  itemTitle: { fontSize: 14, fontWeight: 'bold' },
+  itemTitle: { fontSize: mainPoliceSize, fontWeight: 'bold' },
   itemDate: { fontSize: 12, color: '#666', marginTop: 4 },
   modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' },
   modalContent: { width: '80%', backgroundColor: 'white', borderRadius: 8, padding: 16, alignItems: 'center' },

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SQLite from 'expo-sqlite';
 import { fetchColumnsByType, periode } from './columnConfig';
+import {API_URL} from './apiUrl';
 
 /*permets d'initialiser une instance de la base de données.
 Appeller la fonction permets de se connecter à une meme instance de la base 
@@ -14,27 +15,7 @@ export const initializeDatabase = async () => {
   return db;
 };
 
-const API_URL = 'http:localhost:5000';
-
-export const setupDatabase = async () => {
-  (await db).runAsync(
-      'CREATE TABLE IF NOT EXISTS Barcodes (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT);'
-    );
-};
-
-export const insertBarcode = async (code: string) => {
-  (await db).runAsync('INSERT INTO Barcodes (code) VALUES (?);', [code]);
-};
-
-export async function getBarcodes(): Promise<string[]> {
-  const result: string[] = [];
-  
-  for await (const row of (await db).getEachAsync('SELECT code FROM Barcodes;')) {
-    result.push((row as { code: string }).code);
-  }
-  
-  return result;
-}
+//const API_URL = 'http:localhost:5000';
 
 //récupère l'ensemble des codes barres de la table pour les afficher sur la page historique --> à remplacer par l'historique des EAN scannés
   export const fetchTableData = async () => {
@@ -59,7 +40,7 @@ export async function getBarcodes(): Promise<string[]> {
 // permets de récupérer les données de la table mysql sur le serveur 
 export const handleDownloadData = async (table: string, tableName: string) => {
   const db = await initializeDatabase();
-  const API_URL = 'http://localhost:5000';
+  //const API_URL = 'http://localhost:5000';
   const companyName = 'oui'; // Assurez-vous de récupérer cette valeur dynamiquement
   
   const pageSize = 1000;
@@ -392,7 +373,7 @@ export const fetchUniqueValuesBySegmentation = async (
     let query = `SELECT DISTINCT ${column} FROM data WHERE 1=1`;
     const params: any[] = [];
     if (advancedFilter) {
-      query += ` AND CAST(${advancedFilter.column} AS INTEGER) ${advancedFilter.operator} ?`;
+      query += ` AND CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`;
       params.push(advancedFilter.value);
       if (advancedFilter.circuit && circuitColumn) {
         query += ` AND ${circuitColumn} = ?`;
@@ -413,22 +394,43 @@ export const fetchUniqueValuesBySegmentation = async (
   }
 };
 
+/**
+ * Récupération des valeurs uniques pour un sous-filtre (2ᵉ niveau)
+ */
 export const fetchUniqueValuesForSubFilter = async (
   column: string,
   parentColumn: string,
   parentValue: string,
   circuitColumn: string,
   periodeColumn: string,
-  advancedFilter?: { column: string; operator: string; value: string; circuit?: string; period?: string } | null
+  advancedFilter?: {
+    column: string;
+    operator: string;
+    value: string;
+    type: 'integer' | 'text';
+    circuit?: string;
+    period?: string;
+  } | null
 ): Promise<string[]> => {
   try {
     const db = await initializeDatabase();
-    if (!db) throw new Error("Base de données non initialisée");
     let query = `SELECT DISTINCT ${column} FROM data WHERE ${parentColumn} = ?`;
     const params: any[] = [parentValue];
-    if (advancedFilter) {
-      query += ` AND CAST(${advancedFilter.column} AS INTEGER) ${advancedFilter.operator} ?`;
-      params.push(advancedFilter.value);
+
+    if (
+      advancedFilter &&
+      advancedFilter.column &&
+      advancedFilter.operator &&
+      advancedFilter.value !== ''
+    ) {
+      if (advancedFilter.type === 'integer') {
+        query += ` AND CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`;
+        params.push(parseFloat(advancedFilter.value));
+      } else {
+        query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+        params.push(advancedFilter.value);
+      }
+
       if (advancedFilter.circuit) {
         query += ` AND ${circuitColumn} = ?`;
         params.push(advancedFilter.circuit);
@@ -438,14 +440,18 @@ export const fetchUniqueValuesForSubFilter = async (
         params.push(advancedFilter.period);
       }
     }
+
     const results = await db.getAllAsync(query, params);
     return results.map((row: any) => row[column]).filter(Boolean);
   } catch (error) {
-    console.error("Erreur lors de la récupération des valeurs uniques pour le sous-filtre :", error);
+    console.error("Erreur subFilter :", error);
     return [];
   }
 };
 
+/**
+ * fetchUniqueValuesForThirdFilter
+ */
 export const fetchUniqueValuesForThirdFilter = async (
   column: string,
   parentColumn1: string,
@@ -454,16 +460,34 @@ export const fetchUniqueValuesForThirdFilter = async (
   parentValue2: string,
   circuitColumn: string,
   periodeColumn: string,
-  advancedFilter?: { column: string; operator: string; value: string; circuit?: string; period?: string } | null
+  advancedFilter?: {
+    column: string;
+    operator: string;
+    value: string;
+    type: 'integer' | 'text';
+    circuit?: string;
+    period?: string;
+  } | null
 ): Promise<string[]> => {
   try {
     const db = await initializeDatabase();
-    if (!db) throw new Error("Base de données non initialisée");
     let query = `SELECT DISTINCT ${column} FROM data WHERE ${parentColumn1} = ? AND ${parentColumn2} = ?`;
     const params: any[] = [parentValue1, parentValue2];
-    if (advancedFilter) {
-      query += ` AND CAST(${advancedFilter.column} AS INTEGER) ${advancedFilter.operator} ?`;
-      params.push(advancedFilter.value);
+
+    if (
+      advancedFilter &&
+      advancedFilter.column &&
+      advancedFilter.operator &&
+      advancedFilter.value !== ''
+    ) {
+      if (advancedFilter.type === 'integer') {
+        query += ` AND CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`;
+        params.push(parseFloat(advancedFilter.value));
+      } else {
+        query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+        params.push(advancedFilter.value);
+      }
+
       if (advancedFilter.circuit) {
         query += ` AND ${circuitColumn} = ?`;
         params.push(advancedFilter.circuit);
@@ -473,14 +497,18 @@ export const fetchUniqueValuesForThirdFilter = async (
         params.push(advancedFilter.period);
       }
     }
+
     const results = await db.getAllAsync(query, params);
     return results.map((row: any) => row[column]).filter(Boolean);
   } catch (error) {
-    console.error("Erreur lors de la récupération des valeurs uniques pour le 3ᵉ niveau :", error);
+    console.error("Erreur thirdFilter :", error);
     return [];
   }
 };
 
+/**
+ * fetchUniqueValuesForReferences
+ */
 export const fetchUniqueValuesForReferences = async (
   denominationColumn: string,
   eanColumn: string,
@@ -492,11 +520,17 @@ export const fetchUniqueValuesForReferences = async (
   parentValue3: string,
   circuitColumn: string,
   periodeColumn: string,
-  advancedFilter?: { column: string; operator: string; value: string; circuit?: string; period?: string } | null
+  advancedFilter?: {
+    column: string;
+    operator: string;
+    value: string;
+    type: 'integer' | 'text';
+    circuit?: string;
+    period?: string;
+  } | null
 ): Promise<{ intitule: string; codeEAN: string }[]> => {
   try {
     const db = await initializeDatabase();
-    if (!db) throw new Error("Base de données non initialisée");
 
     let query = `
       SELECT DISTINCT ${denominationColumn} AS intitule, ${eanColumn} AS codeEAN
@@ -507,9 +541,20 @@ export const fetchUniqueValuesForReferences = async (
     `;
     const params: any[] = [parentValue1, parentValue2, parentValue3];
 
-    if (advancedFilter) {
-      query += ` AND CAST(${advancedFilter.column} AS INTEGER) ${advancedFilter.operator} ?`;
-      params.push(advancedFilter.value);
+    if (
+      advancedFilter &&
+      advancedFilter.column &&
+      advancedFilter.operator &&
+      advancedFilter.value !== ''
+    ) {
+      if (advancedFilter.type === 'integer') {
+        query += ` AND CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`;
+        params.push(parseFloat(advancedFilter.value));
+      } else {
+        query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+        params.push(advancedFilter.value);
+      }
+
       if (advancedFilter.circuit) {
         query += ` AND ${circuitColumn} = ?`;
         params.push(advancedFilter.circuit);
@@ -519,6 +564,7 @@ export const fetchUniqueValuesForReferences = async (
         params.push(advancedFilter.period);
       }
     }
+
     const results = await db.getAllAsync(query, params);
     return results
       .map((row: any) => ({
@@ -527,13 +573,13 @@ export const fetchUniqueValuesForReferences = async (
       }))
       .filter(item => item.intitule && item.codeEAN);
   } catch (error) {
-    console.error("Erreur lors de la récupération des références :", error);
+    console.error("Erreur references :", error);
     return [];
   }
 };
 
 /**
- * Version pour un seul filtre actif.
+ * fetchUniqueValuesForReferencesOne (1 filtre actif)
  */
 export const fetchUniqueValuesForReferencesOne = async (
   denominationColumn: string,
@@ -542,11 +588,17 @@ export const fetchUniqueValuesForReferencesOne = async (
   parentValue: string,
   circuitColumn: string,
   periodeColumn: string,
-  advancedFilter?: { column: string; operator: string; value: string; circuit?: string; period?: string } | null
+  advancedFilter?: {
+    column: string;
+    operator: string;
+    value: string;
+    type: 'integer' | 'text';
+    circuit?: string;
+    period?: string;
+  } | null
 ): Promise<{ intitule: string; codeEAN: string }[]> => {
   try {
     const db = await initializeDatabase();
-    if (!db) throw new Error("Base de données non initialisée");
 
     let query = `
       SELECT DISTINCT ${denominationColumn} AS intitule, ${eanColumn} AS codeEAN
@@ -555,9 +607,21 @@ export const fetchUniqueValuesForReferencesOne = async (
     `;
     const params: any[] = [parentValue];
 
-    if (advancedFilter) {
-      query += ` AND CAST(${advancedFilter.column} AS INTEGER) ${advancedFilter.operator} ?`;
-      params.push(advancedFilter.value);
+    if (
+      advancedFilter &&
+      advancedFilter.column &&
+      advancedFilter.operator &&
+      advancedFilter.value !== '' &&
+      advancedFilter.type
+    ) {
+      if (advancedFilter.type === 'integer') {
+        query += ` AND CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`;
+        params.push(parseFloat(advancedFilter.value));
+      } else {
+        query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+        params.push(advancedFilter.value);
+      }
+
       if (advancedFilter.circuit) {
         query += ` AND ${circuitColumn} = ?`;
         params.push(advancedFilter.circuit);
@@ -567,6 +631,7 @@ export const fetchUniqueValuesForReferencesOne = async (
         params.push(advancedFilter.period);
       }
     }
+
     const results = await db.getAllAsync(query, params);
     return results
       .map((row: any) => ({
@@ -575,13 +640,13 @@ export const fetchUniqueValuesForReferencesOne = async (
       }))
       .filter(item => item.intitule && item.codeEAN);
   } catch (error) {
-    console.error("Erreur lors de la récupération des références (1 filtre):", error);
+    console.error("Erreur referencesOne :", error);
     return [];
   }
 };
 
-/**
- * Version pour deux filtres actifs.
+/*
+ * fetchUniqueValuesForReferencesTwo (2 filtres actifs)
  */
 export const fetchUniqueValuesForReferencesTwo = async (
   denominationColumn: string,
@@ -590,31 +655,53 @@ export const fetchUniqueValuesForReferencesTwo = async (
   parentValue1: string,
   parentColumn2: string,
   parentValue2: string,
-  advancedFilter?: { column: string; operator: string; value: string; circuit?: string; period?: string } | null
+  circuitColumn: string,
+  periodeColumn: string,
+  advancedFilter?: {
+    column: string;
+    operator: string;
+    value: string;
+    type: 'integer' | 'text';
+    circuit?: string;
+    period?: string;
+  } | null
 ): Promise<{ intitule: string; codeEAN: string }[]> => {
   try {
     const db = await initializeDatabase();
-    if (!db) throw new Error("Base de données non initialisée");
 
     let query = `
       SELECT DISTINCT ${denominationColumn} AS intitule, ${eanColumn} AS codeEAN
       FROM data
-      WHERE ${parentColumn1} = ? AND ${parentColumn2} = ?
+      WHERE ${parentColumn1} = ? 
+        AND ${parentColumn2} = ?
     `;
     const params: any[] = [parentValue1, parentValue2];
 
-    if (advancedFilter) {
-      query += ` AND CAST(${advancedFilter.column} AS INTEGER) ${advancedFilter.operator} ?`;
-      params.push(advancedFilter.value);
+    if (
+      advancedFilter &&
+      advancedFilter.column &&
+      advancedFilter.operator &&
+      advancedFilter.value !== '' &&
+      advancedFilter.type
+    ) {
+      if (advancedFilter.type === 'integer') {
+        query += ` AND CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`;
+        params.push(parseFloat(advancedFilter.value));
+      } else {
+        query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+        params.push(advancedFilter.value);
+      }
+
       if (advancedFilter.circuit) {
-        query += ` AND ${circuitColumn} = ?`;
+        query += ` AND ${circuitColumn} = ?`;   // adaptez si le nom de col n'est pas 'circuit'
         params.push(advancedFilter.circuit);
       }
       if (advancedFilter.period) {
-        query += ` AND ${periodeColumn} = ?`;
+        query += ` AND ${periodeColumn} = ?`;   // adaptez si le nom de col n'est pas 'periode'
         params.push(advancedFilter.period);
       }
     }
+
     const results = await db.getAllAsync(query, params);
     return results
       .map((row: any) => ({
@@ -623,7 +710,32 @@ export const fetchUniqueValuesForReferencesTwo = async (
       }))
       .filter(item => item.intitule && item.codeEAN);
   } catch (error) {
-    console.error("Erreur lors de la récupération des références (2 filtres):", error);
+    console.error("Erreur referencesTwo :", error);
+    return [];
+  }
+};
+
+//récupère l'intitulé d'une référence selon son gencode
+export const getIntitule = async (
+  EAN: string,
+  colonneEAN:string,
+  colonneDeno: string,
+) => {
+  try {
+    const db = await initializeDatabase();
+    let query = `
+      SELECT ${colonneDeno}
+      FROM data
+      WHERE ${colonneEAN} = ? 
+    `;
+    
+    const params = `${EAN}`
+
+    const results = await db.getFirstAsync(query, params);
+    return results[colonneDeno];
+     
+  } catch (error) {
+    console.error("Erreur recupération intitulé :", error);
     return [];
   }
 };

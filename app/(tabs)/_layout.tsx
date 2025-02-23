@@ -1,50 +1,42 @@
 import { Tabs } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { TabBarIcon } from '@/components/navigation/TabBarIcon';
+import React, { useState } from 'react';
+import { View, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import SettingsScreen from '../settings'; // Vérifiez que ce chemin est bon
+import Logo from '../../assets/svg/Logo.svg'; // Votre SVG doit utiliser "currentColor" pour les fills
+import Recherche from '../../assets/svg/Recherche.svg';
+import Historique from '../../assets/svg/Historique.svg';
 
 export default function TabLayout() {
-  const router = useRouter();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   return (
-    <LinearGradient
-      colors={['#3A3FD4', '#7377FD']}
-      style={styles.gradientContainer}
-    >
+    <LinearGradient colors={['#3A3FD4', '#7377FD']} style={styles.gradientContainer}>
       <View style={{ flex: 1 }}>
         <Tabs
           screenOptions={{
             tabBarActiveTintColor: '#98FFBF',
             tabBarInactiveTintColor: 'white',
             tabBarStyle: {
-              display: "flex",
-              height:"10%",
+              display: 'flex',
+              height: '10%',
               marginTop: 15,
               borderTopWidth: 0,
-              backgroundColor: "transparent",
+              backgroundColor: 'transparent',
             },
-            headerShown: true, // Affiche un en-tête sur toutes les pages
-            headerTransparent: true,
-            headerTitle: '', // Pas de titre affiché dans l'en-tête
-            headerRight: () => (
-              <TouchableOpacity
-                onPress={() => router.push('../settings')}
-                style={styles.settingsButton}
-              >
-                <Ionicons name="settings-outline" size={30} color="#7377FD" />
-              </TouchableOpacity>
-            ),
+            headerShown: false, // Supprime le header blanc
           }}
         >
-          <Tabs.Screen
+            <Tabs.Screen
             name="explore"
             options={{
-              title: 'Explore',
+              title: 'Recherche',
               tabBarIcon: ({ color, focused }) => (
-                <TabBarIcon name={focused ? 'search' : 'search-outline'} color={color} size={35} height={45} />
+                <View style={styles.indicator}>
+                {/* On passe la couleur à la fois via la prop `fill` et via le style */}
+                <Recherche width="30" height="30" fill={color} style={{ color: color }} />
+              </View>
               ),
             }}
           />
@@ -52,8 +44,11 @@ export default function TabLayout() {
             name="index"
             options={{
               title: 'Scan',
-              tabBarIcon: ({ color, focused }) => (
-                <TabBarIcon name={focused ? 'scan' : 'scan-outline'} color={color} size={40} height={55} width={50}/>
+              tabBarIcon: ({ color }) => (
+                <View style={styles.indicator}>
+                  {/* On passe la couleur à la fois via la prop `fill` et via le style */}
+                  <Logo width="35" height="35" fill={color} style={{ color: color }} />
+                </View>
               ),
             }}
           />
@@ -62,20 +57,44 @@ export default function TabLayout() {
             options={{
               title: 'Historique',
               tabBarIcon: ({ color, focused }) => (
-                <TabBarIcon name={focused ? 'timer' : 'timer-outline'} color={color} size={35} height={45} />
+                <View style={styles.indicator}>
+                {/* On passe la couleur à la fois via la prop `fill` et via le style */}
+                <Historique width="30" height="30" fill={color} style={{ color: color }} />
+              </View>
               ),
             }}
           />
         </Tabs>
+
+        {/* Bouton Paramètres */}
+        <TouchableOpacity onPress={() => setIsSettingsOpen(true)} style={styles.settingsButton}>
+          <Ionicons name="settings-outline" size={30} color="#7377FD" />
+        </TouchableOpacity>
+
+        {/* Modale pour Paramètres */}
+        <Modal visible={isSettingsOpen} animationType="slide" transparent>
+          <SettingsScreen onClose={() => setIsSettingsOpen(false)} />
+        </Modal>
       </View>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  gradientContainer: { 
+  gradientContainer: {
     flex: 1,
     height: 100,
-   },
-  settingsButton: { marginRight: '15%' },
+  },
+  settingsButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 10,
+    borderRadius: 50,
+  },
+  indicator: {
+    width: 35,
+    height: 50,
+  },
 });

@@ -1,18 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { View, TextInput, Button, StyleSheet, Text, Alert } from 'react-native';
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  Image
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SQLite from 'expo-sqlite';
-import { handleDownloadData,loadingData } from '../utils/database';
 import { LinearGradient } from 'expo-linear-gradient';
+import {API_URL} from '../utils/apiUrl';
+import { handleDownloadData,loadingData } from '../utils/database';
 
-export default function SettingsScreen({  }) {
+// Importation du logo (en .svg, utilisé comme composant si tu as bien configuré 'react-native-svg')
+import LogoBlanc from '../assets/svg/LogoBlanc.svg';
+
+export default function SettingsScreen({ onClose }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [jwt, setJwt] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [companyName, setCompanyName] = useState('');
 
-  const API_URL = 'http:localhost:5000'; // Remplacez par l'URL de votre serveur
+  const [usernameFocused, setUsernameFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+
 
   useEffect(() => {
     const checkLoginStatus = async () => {
@@ -35,12 +47,6 @@ export default function SettingsScreen({  }) {
         body: JSON.stringify({ username, password }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        Alert.alert('Erreur', errorData.message || 'Échec de la connexion');
-        return;
-      }
-
       const data = await response.json();
       if (data.token) {
         setJwt(data.token);
@@ -48,82 +54,199 @@ export default function SettingsScreen({  }) {
         setIsLoggedIn(true);
         await AsyncStorage.setItem('jwt', data.token);
         await AsyncStorage.setItem('entreprise', data.entreprise);
-        Alert.alert('Succès', 'Connexion réussie');
-        console.log(jwt);
+        alert('Connexion réussie');
       } else {
-        Alert.alert('Erreur', 'Échec de la connexion');
+        alert('Échec de la connexion');
       }
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de se connecter au serveur');
-      console.error('Erreur de connexion :', error);
+      alert('Impossible de se connecter au serveur');
     }
   };
+
+  console.log('jwt : ',jwt,' entreprise : ',companyName)
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem('jwt');
     setJwt('');
     setIsLoggedIn(false);
-    Alert.alert('Déconnexion', 'Vous avez été déconnecté');
+    alert('Déconnexion réussie');
   };
-  
 
   return (
     <LinearGradient
-     colors={['#454AD8', '#7579FF']}
-     locations={[0, 1]}
-     start={{ x: 0, y: 0 }}
-     end={{ x: 0, y: 1 }}
-    style={styles.Fond}
+      colors={['#454AD8', '#7579FF']}
+      style={styles.gradientBackground}
     >
-    <View style={styles.container}>
-      {isLoggedIn ? (
-        <View>
-          <Text style={styles.welcomeText}>Bienvenue, {companyName} !</Text>
-          <Button title="Charger les données" onPress={loadingData} color={'#98FFBF'}/>
-          <Button title="Se déconnecter" onPress={handleLogout} color={'#98FFBF'}/>
-          
-        </View>
-      ) : (
-        <View>
-          <Text style={styles.title}>Connexion</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Nom d'utilisateur"
-            value={username}
-            onChangeText={setUsername}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Mot de passe"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-          <Button title="Se connecter" onPress={handleLogin} />
-        </View>
-      )}
-    </View>
+      {/* Logo en fond, derrière tous les éléments */}
+      <View style={styles.backgroundContainer}>
+        <LogoBlanc style={styles.backgroundLogo} width={400} height={400} />
+      </View>
+
+      {/* Zone du bouton retour */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onClose} style={styles.backButton}>
+          <Text style={styles.backButtonText}>{'< Retour'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.container}>
+        {isLoggedIn ? (
+          <View style={styles.loggedInContainer}>
+            <Text style={styles.welcomeText}>
+              Nom retourné : {companyName}
+            </Text>
+            <Text style={styles.subtitle}>
+              Nouvelles données disponibles :
+            </Text>
+            <TouchableOpacity
+              style={styles.mainButton}
+              onPress={loadingData}
+            >
+              <Text style={styles.mainButtonText}>Charger les données</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <Text style={styles.logoutText}>Se déconnecter</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.loginContainer}>
+            <Text style={styles.title}>
+              Vous n'êtes pas encore connecté
+            </Text>
+
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder={usernameFocused ? '' : 'Identifiant'}
+                placeholderTextColor="#FFFFFF"
+                value={username}
+                onChangeText={setUsername}
+                onFocus={() => setUsernameFocused(true)}
+                onBlur={() => setUsernameFocused(false)}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder={passwordFocused ? '' : 'Mot de passe'}
+                placeholderTextColor="#FFFFFF"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
+              />
+            </View>
+
+            <TouchableOpacity style={styles.mainButton} onPress={handleLogin}>
+              <Text style={styles.mainButtonText}>S'authentifier</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 16,color:'white' },
-  title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color:'white' },
+  gradientBackground: {
+    flex: 1,
+  },
+  // Conteneur absolu pour le logo en fond
+  backgroundContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    // On le centre
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Logo en filigrane
+  backgroundLogo: {
+    transform: [{ rotate: '-20deg' },{scale:1.6}],
+    opacity: 0.3,
+  },
+  header: {
+    paddingTop: 40,
+    paddingHorizontal: 20,
+  },
+  backButton: {},
+  backButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  container: {
+    flex: 1,
+    // Pour centrer verticalement et horizontalement le contenu
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  loginContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  loggedInContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 25,
+    textAlign: 'center',
+  },
+  inputContainer: {
+    width: '100%',
+    height: 50,
+    borderColor: '#FFFFFF',
+    borderWidth: 2,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   input: {
-    height: 40,
-    borderColor: 'gray',
-    borderWidth: 1,
-    marginBottom: 12,
-    paddingHorizontal: 8,
-    borderRadius: 5,
-    color:'white',
+    width: '90%',
+    height: '100%',
+    fontSize: 16,
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
-  welcomeText: { fontSize: 18, textAlign: 'center', marginBottom: 20,color:'white' },
-  Fond:{
-    flex:1,
+  mainButton: {
+    backgroundColor: '#98FFBF',
+    paddingVertical: 15,
+    paddingHorizontal: 40,
+    borderRadius: 25,
+    marginTop: 15,
   },
-  BoutonsChargement:{
-    color:'#98FFBF',
+  mainButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000000',
+  },
+  welcomeText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  subtitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  logoutButton: {
+    marginTop: 20,
+  },
+  logoutText: {
+    color: '#FFFFFF',
+    textDecorationLine: 'underline',
+    fontSize: 14,
   },
 });
