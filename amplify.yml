@@ -6,10 +6,9 @@ frontend:
         - nvm install 20
         - nvm use 20
     build:
-      commands:
-        - npm install
-        - npm update
-        - npm start  # Ensure you're running the build command
+commands:
+        - npm ci  # Use npm ci for faster installs
+        - npm run build  # Use the build command instead of start
   artifacts:
     baseDirectory: build
     files:
