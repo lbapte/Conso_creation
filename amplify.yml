@@ -8,7 +8,7 @@ frontend:
     test:
       commands:
         - npm install
-        - npm test  # Run your tests here
+        - npm test || exit 1
     build:
       commands:
         - npm install
