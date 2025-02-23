@@ -1,0 +1,25 @@
+{
+  "permissions": {},
+  "lambdaLayers": [
+    {
+      "type": "ExternalLayer",
+      "arn": "arn:aws:lambda:eu-west-1:113088814899:layer:Klayers-p39-boto3:1"
+    },
+    {
+      "type": "ExternalLayer",
+      "arn": "arn:aws:lambda:eu-west-1:113088814899:layer:Klayers-p39-requests:1"
+    },
+    {
+      "type": "ExternalLayer",
+      "arn": "arn:aws:lambda:eu-west-1:113088814899:layer:Klayers-p39-pandas:1"
+    },
+    {
+      "type": "ExternalLayer",
+      "arn": "arn:aws:lambda:eu-west-1:113088814899:layer:Klayers-p39-numpy:1"
+    },
+    {
+      "type": "ExternalLayer",
+      "arn": "arn:aws:lambda:eu-west-1:113088814899:layer:Klayers-p39-scipy:1"
+    }
+  ]
+}
