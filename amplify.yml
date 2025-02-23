@@ -5,10 +5,15 @@ frontend:
       commands:
         - nvm install 20
         - nvm use 20
+    test:
+      commands:
+        - npm install
+        - npm test  # Run your tests here
     build:
       commands:
         - npm install
-        - npm run build
+        - npm update
+        - npm start  # Ensure you're running the build command
   artifacts:
     baseDirectory: build
     files:
