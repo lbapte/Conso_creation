@@ -1,23 +1,65 @@
 import { Tabs } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { View, StyleSheet, TouchableOpacity, Modal, AppState, AppStateStatus } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import SettingsScreen from '../settings'; // Vérifiez que ce chemin est bon
-import Logo from '../../assets/svg/Logo.svg'; // Votre SVG doit utiliser "currentColor" pour les fills
+import SettingsScreen from '../settings'; 
+import Logo from '../../assets/svg/Logo.svg'; 
 import Recherche from '../../assets/svg/Recherche.svg';
 import Historique from '../../assets/svg/Historique.svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function TabLayout() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  const appStateRef = useRef(appState);
+  appStateRef.current = appState;
+
+  const [hasNewData, setHasNewData] = useState(false);
+
+  const checkNewData = async () => {
+    try {
+      const newDataValue = await AsyncStorage.getItem('newData');
+      setHasNewData(newDataValue === 'true');
+    } catch (error) {
+      console.error('Erreur lors de la récupération de newData :', error);
+    }
+  };
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+        checkNewData();
+      }
+      setAppState(nextAppState);
+      checkNewData();
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    // On check au montage
+    checkNewData();
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      checkNewData();
+    }, [])
+  );
 
   return (
     <LinearGradient colors={['#3A3FD4', '#7377FD']} style={styles.gradientContainer}>
       <View style={{ flex: 1 }}>
         <Tabs
           screenOptions={{
-            tabBarActiveTintColor: '#98FFBF',
-            tabBarInactiveTintColor: 'white',
+            // Inversion des couleurs
+            tabBarActiveTintColor: '#98FFBF',     // icône blanche quand l'onglet est actif
+            tabBarInactiveTintColor: '#FFF', // icône vert clair quand il est inactif
             tabBarStyle: {
               display: 'flex',
               height: '10%',
@@ -25,18 +67,17 @@ export default function TabLayout() {
               borderTopWidth: 0,
               backgroundColor: 'transparent',
             },
-            headerShown: false, // Supprime le header blanc
+            headerShown: false,
           }}
         >
-            <Tabs.Screen
+          <Tabs.Screen
             name="explore"
             options={{
               title: 'Recherche',
-              tabBarIcon: ({ color, focused }) => (
+              tabBarIcon: ({ color }) => (
                 <View style={styles.indicator}>
-                {/* On passe la couleur à la fois via la prop `fill` et via le style */}
-                <Recherche width="30" height="30" fill={color} style={{ color: color }} />
-              </View>
+                  <Recherche width={30} height={30} fill={color} style={{ color }} />
+                </View>
               ),
             }}
           />
@@ -46,8 +87,7 @@ export default function TabLayout() {
               title: 'Scan',
               tabBarIcon: ({ color }) => (
                 <View style={styles.indicator}>
-                  {/* On passe la couleur à la fois via la prop `fill` et via le style */}
-                  <Logo width="35" height="35" fill={color} style={{ color: color }} />
+                  <Logo width={35} height={35} fill={color} style={{ color }} />
                 </View>
               ),
             }}
@@ -56,11 +96,10 @@ export default function TabLayout() {
             name="historique"
             options={{
               title: 'Historique',
-              tabBarIcon: ({ color, focused }) => (
+              tabBarIcon: ({ color }) => (
                 <View style={styles.indicator}>
-                {/* On passe la couleur à la fois via la prop `fill` et via le style */}
-                <Historique width="30" height="30" fill={color} style={{ color: color }} />
-              </View>
+                  <Historique width={30} height={30} fill={color} style={{ color }} />
+                </View>
               ),
             }}
           />
@@ -68,7 +107,7 @@ export default function TabLayout() {
 
         {/* Bouton Paramètres */}
         <TouchableOpacity onPress={() => setIsSettingsOpen(true)} style={styles.settingsButton}>
-          <Ionicons name="settings-outline" size={30} color="#7377FD" />
+          <Ionicons name="settings-outline" size={30} color={hasNewData ? 'red' : '#7377FD'} />
         </TouchableOpacity>
 
         {/* Modale pour Paramètres */}
@@ -79,7 +118,7 @@ export default function TabLayout() {
     </LinearGradient>
   );
 }
-
+ 
 const styles = StyleSheet.create({
   gradientContainer: {
     flex: 1,

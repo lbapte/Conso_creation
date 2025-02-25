@@ -11,7 +11,7 @@ import ResultModal from '../resultat';
 import * as Haptics from 'expo-haptics';
 import {insertHistoriqueEntry} from '../../utils/baseHistorique';
 import {codeEAN,denominationProduit} from '../../utils/columnConfig';
-import {getIntitule} from '../../utils/database';
+import {getIntitule,getData,checkForNewData} from '../../utils/database';
 
 export default function Scanner() {
   const [scannedCode, setScannedCode] = useState<string | null>(null);
@@ -30,6 +30,7 @@ export default function Scanner() {
   const resetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Pour s'assurer que la vibration du milieu ne se déclenche qu'une seule fois
   const midHapticTriggeredRef = useRef(false);
+
 
   const THRESHOLD = 7; // 7 x 100ms = 0,7 s
 
@@ -90,7 +91,6 @@ export default function Scanner() {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               (async () => {
                 const intitule = await getIntitule(data, codeEAN[0], denominationProduit[0]);
-                console.log('intitule =', intitule);
                 insertHistoriqueEntry(intitule,data, 'scan');
               })();
               setModalVisible(true);

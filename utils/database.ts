@@ -37,13 +37,111 @@ export const initializeDatabase = async () => {
     
   };
 
+export const getData = async () => {
+  const db = await initializeDatabase();
+  const jwt = await AsyncStorage.getItem('jwt');
+  const company = await AsyncStorage.getItem('entreprise');
+  const apiUrl = `${API_URL}/data_receiver/get_data/LastSubmition_${company}`;
+  const pageSize = 1;
+
+  const storeSubmissionDate = async (date) => {
+    if (date === undefined || date === null) {
+      console.error("Submission date is undefined or null, rien n'est stocké");
+      return;
+    }
+    try {
+      // S'assurer que la date est stockée en tant que chaîne de caractères
+      await AsyncStorage.setItem('submission_date', date.toString());
+    } catch (error) {
+      console.error("Erreur lors du stockage de la date :", error);
+    }
+  };
+
+  try {
+    // Récupérer les données de l'API
+    const response = await fetch(`${apiUrl}?page=1&page_size=${pageSize}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    const json = await response.json();
+
+    let submissionDate = null;
+    // Si la réponse est un tableau, on récupère la date depuis le premier élément
+    if (Array.isArray(json) && json.length > 0 && json[0].submission_date) {
+      submissionDate = json[0].submission_date;
+    } else if (json.submission_date) {
+      submissionDate = json.submission_date;
+    }
+
+    if (!submissionDate) {
+      console.error("Submission date introuvable dans la réponse :", json);
+    } else {
+      await storeSubmissionDate(submissionDate);
+    }
+  } catch (error) {
+    console.error('Erreur lors de la récupération des données de date', error);
+  }
+  console.log('date chargée');
+};
+
+// // // //  
+
+export const checkForNewData = async () => {
+  try {
+    // Récupérer le JWT et le nom de l'entreprise depuis AsyncStorage
+    const jwt = await AsyncStorage.getItem('jwt');
+    const company = await AsyncStorage.getItem('entreprise');
+    
+    // Construire l'URL de l'API en fonction du nom de l'entreprise
+    const apiUrl = `${API_URL}/data_receiver/get_data/LastSubmition_${company}`;
+    
+    // Appeler l'API pour récupérer la dernière date de soumission
+    const response = await fetch(`${apiUrl}?page=1&page_size=1`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+      },
+    });
+    
+    const json = await response.json();
+    
+    // Extraction de la date depuis la réponse (qui est un tableau)
+    let apiSubmissionDate = null;
+    if (Array.isArray(json) && json.length > 0 && json[0].submission_date) {
+      apiSubmissionDate = json[0].submission_date;
+    } else if (json.submission_date) {
+      apiSubmissionDate = json.submission_date;
+    } else {
+      console.error("Submission date introuvable dans la réponse API :", json);
+      return;
+    }
+    
+    // Récupérer la date stockée dans AsyncStorage
+    const storedSubmissionDate = await AsyncStorage.getItem('submission_date');
+    
+    // Comparer les dates
+    if (storedSubmissionDate !== apiSubmissionDate) {
+      // Si les dates diffèrent, on considère qu'il y a de nouvelles données
+      await AsyncStorage.setItem('newData', 'true');
+      console.log("Nouvelle donnée détectée : newData mis à true.");
+    } else {
+      await AsyncStorage.setItem('newData', 'false');
+      console.log("Aucune nouvelle donnée : newData mis à false.");
+    }
+  } catch (error) {
+    console.error("Erreur lors de la vérification des nouvelles données :", error);
+  }
+};
+
+// // // //  
+
 // permets de récupérer les données de la table mysql sur le serveur 
 export const handleDownloadData = async (table: string, tableName: string) => {
   const db = await initializeDatabase();
   //const API_URL = 'http://localhost:5000';
   const companyName = 'oui'; // Assurez-vous de récupérer cette valeur dynamiquement
   
-  const pageSize = 1000;
+  const pageSize = 8000;
   const jwt = await AsyncStorage.getItem('jwt');
   const apiUrl = `${API_URL}/data_receiver/get_data/${table}`;
   // Supprimer la table existante
@@ -123,6 +221,7 @@ export const loadingData = async () => {
 
   handleDownloadData("TD_oui","data");
   handleDownloadData("Colonnes","segments");
+  getData();
   //fetchColumnsByType();
 
 };
@@ -295,7 +394,7 @@ export const fetchReferencesWithIndicators = async (
         console.error("Erreur lors de la récupération de segmentationValue :", error);
       }
     }
-
+    console.log("ok1");
     // 📌 Construction dynamique des filtres SQL
     let whereConditions = [`${circuitColumn} = ?`, `${periodeColumn} = ?`];
     let queryParams: any[] = [circuitValue, periodeValue];
@@ -312,7 +411,7 @@ export const fetchReferencesWithIndicators = async (
         queryParams.push(numericValue);
       }
     }
-
+    console.log("ok2");
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     // 🔹 Requête SQL principale avec classement des références
@@ -330,9 +429,12 @@ export const fetchReferencesWithIndicators = async (
 
     queryParams.push(limit);
 
-    const result1 = await db.getAllAsync(query, queryParams);
-    const result2 = await db.getAllAsync(query, [...queryParams.slice(0, -1), comparisonPeriodeValue, limit]);
+    console.log(queryParams,...queryParams.slice(0, -1));
 
+    const result1 = await db.getAllAsync(query, queryParams);
+    console.log("ok3");
+    const result2 = await db.getAllAsync(query, [...queryParams.slice(0), comparisonPeriodeValue, limit]);
+    console.log("ok4");
     // 🔹 Requête SQL pour récupérer le rang de la référence scannée
     const rankQuery = `
       SELECT rank FROM (
@@ -354,6 +456,8 @@ export const fetchReferencesWithIndicators = async (
     return { references: [[], []], scannedRank: null };
   }
 };
+
+
 
 /**
  * Récupéartion des valeurs unique pour le premier filtre

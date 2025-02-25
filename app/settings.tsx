@@ -10,7 +10,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import {API_URL} from '../utils/apiUrl';
-import { handleDownloadData,loadingData } from '../utils/database';
+import { handleDownloadData,loadingData,get } from '../utils/database';
 
 // Importation du logo (en .svg, utilisé comme composant si tu as bien configuré 'react-native-svg')
 import LogoBlanc from '../assets/svg/LogoBlanc.svg';
