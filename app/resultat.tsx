@@ -356,7 +356,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
               <View style={styles.indicatorTopSection}>
                 <Text style={styles.indicatorTitle} numberOfLines={2} ellipsizeMode="tail">{indicator}</Text>
                 <Text style={styles.indicatorValue}>
-                  {data.length > 0 ? data[0][0][indicator] || '-' : '-'}
+                  {data.length > 0 ? Number(data[0][0][indicator]).toFixed(2)   || '-' : '-'}
                 </Text>
               </View>
               {showDetailedIndicators && (
@@ -1087,6 +1087,4 @@ const styles = StyleSheet.create({
   },
 });
 
-
 export default AppPage;
-

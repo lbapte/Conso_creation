@@ -83,7 +83,6 @@ export const getData = async () => {
   }
   console.log('date chargée');
 };
-
 // // // //  
 
 export const checkForNewData = async () => {
@@ -133,85 +132,139 @@ export const checkForNewData = async () => {
   }
 };
 
+
+
+export const getRemoteTotalRowCount = async (table) => {
+  const jwt = await AsyncStorage.getItem('jwt');
+  const response = await fetch(`${API_URL}/data_receiver/get_count/${table}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+  if (!response.ok) {
+    throw new Error('Erreur réseau lors de la récupération du nombre total');
+  }
+  const data = await response.json();
+  // On suppose que l'API renvoie un objet { total: nombre }
+  return data.total;
+};
+
+// Fonction pour charger une page de données et les insérer dans la base SQLite locale
+export const fetchDataPage = async (table, tableName, pageSize, pageNumber) => {
+  const db = await initializeDatabase();
+  const jwt = await AsyncStorage.getItem('jwt');
+  const apiUrl = `${API_URL}/data_receiver/get_data/${table}`;
+  const response = await fetch(`${apiUrl}?page=${pageNumber}&page_size=${pageSize}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+  if (!response.ok) {
+    throw new Error('Erreur réseau lors de la récupération des données.');
+  }
+  const data = await response.json();
+
+  // Pour la première page, on crée la table locale
+  if (pageNumber === 1 && data && data.length > 0) {
+    const columns = Object.keys(data[0]);
+    const createTableQuery = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.map(col => `"${col}" TEXT`).join(', ')});`;
+    await db.execAsync(createTableQuery);
+  }
+
+  // Insertion des données dans la table
+  if (data && data.length > 0) {
+    const columns = Object.keys(data[0]);
+    for (const row of data) {
+      const placeholders = columns.map(() => '?').join(', ');
+      const values = columns.map(col => row[col] ?? null);
+      const insertQuery = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders});`;
+      await db.runAsync(insertQuery, values);
+    }
+  }
+  return data;
+};
+
+export const cleanTable = async (tableName: string): Promise<void> => {
+  try {
+    const db = await initializeDatabase();
+    await db.execAsync(`DROP TABLE IF EXISTS ${tableName};`);
+    console.log(`La table "${tableName}" a été effacée avec succès.`);
+  } catch (error) {
+    console.error(`Erreur lors de l'effacement de la table "${tableName}" :`, error);
+    throw error;
+  }
+};
+
 // // // //  
 
 // permets de récupérer les données de la table mysql sur le serveur 
 export const handleDownloadData = async (table: string, tableName: string) => {
   const db = await initializeDatabase();
-  //const API_URL = 'http://localhost:5000';
-  const companyName = 'oui'; // Assurez-vous de récupérer cette valeur dynamiquement
-  
-  const pageSize = 8000;
+  // Décommentez et définissez API_URL si nécessaire
+  // const API_URL = 'http://localhost:5000';
+  const pageSize = 1000;
   const jwt = await AsyncStorage.getItem('jwt');
   const apiUrl = `${API_URL}/data_receiver/get_data/${table}`;
+
   // Supprimer la table existante
   try {
     await db.execAsync(`DROP TABLE IF EXISTS ${tableName};`);
-    //console.log('Table supprimée avec succès.');
   } catch (error) {
     console.error('Erreur lors de la suppression de la table :', error);
     return;
   }
 
   try {
-    // Récupérer les données de l'API
-    const response = await fetch(`${apiUrl}?page=1&page_size=${pageSize}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${jwt}` },
-    });
-
-    if (!response.ok) throw new Error('Erreur réseau lors de la récupération des données.');
-    const data = await response.json();
-
-    if (!data || data.length === 0) {
-      throw new Error('Aucune donnée valide reçue de l\'API.');
-    }
-
-    // Analyser les colonnes
-    const columns = Object.keys(data[0]);
-
-    try {
-    const createTableQuery = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.map(col => `"${col}" TEXT`).join(', ')});`;
-    await db.execAsync(createTableQuery);
-      
-    } catch (error) {
-      console.error('Erreur lors de la création de la table :', error);
-      // Afficher un message d'erreur à l'utilisateur ou effectuer une autre action appropriée
-    }
-
-    // Fonction pour insérer les données
-   const insertData = async (rows: any) => {
-      for (const row of rows) {
-        const placeholders = columns.map(() => '?').join(', ');
-        const values = columns.map(col => row[col] || null); // Gérer les valeurs manquantes
-        const insertQuery = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders});`;
-        await db.runAsync(insertQuery, values);
-      
-      }
-    };
-    
-
-    // Insérer la première page de données
-    await insertData(data);
-  
-    const firstRow = await db.getAllAsync(`SELECT * FROM ${tableName}`);
-
-    // Pagination pour les pages suivantes
-    let page = 2;
-    while (data.length === pageSize) {
-      const nextResponse = await fetch(`${apiUrl}?page=${page}&page_size=${pageSize}`, {
+    let page = 1;
+    let data: any[] = [];
+    let insertData: (rows: any[]) => Promise<void>;
+    do {
+      // Récupération des données pour la page courante
+      const response = await fetch(`${apiUrl}?page=${page}&page_size=${pageSize}`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${jwt}` },
       });
 
-      if (!nextResponse.ok) throw new Error('Erreur réseau lors de la récupération des pages suivantes.');
-      const nextData = await nextResponse.json();
-      if (nextData.length === 0) break;
+      if (!response.ok)
+        throw new Error('Erreur réseau lors de la récupération des données.');
+      data = await response.json();
 
-      //await insertData(nextData);
+      // S'assurer qu'on a bien reçu des données pour la première page
+      if (page === 1 && (!data || data.length === 0)) {
+        throw new Error('Aucune donnée valide reçue de l\'API.');
+      }
+
+      // Création de la table à partir de la première page
+      if (page === 1) {
+        const columns = Object.keys(data[0]);
+        try {
+          const createTableQuery = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns
+            .map(col => `"${col}" TEXT`)
+            .join(', ')});`;
+          await db.execAsync(createTableQuery);
+        } catch (error) {
+          console.error('Erreur lors de la création de la table :', error);
+          return;
+        }
+
+        // Fonction d'insertion qui utilise les colonnes déterminées
+        insertData = async (rows: any[]) => {
+          for (const row of rows) {
+            const placeholders = columns.map(() => '?').join(', ');
+            const values = columns.map(col => row[col] ?? null);
+            const insertQuery = `INSERT INTO ${tableName} (${columns.join(
+              ', '
+            )}) VALUES (${placeholders});`;
+            await db.runAsync(insertQuery, values);
+          }
+        };
+      }
+
+      // Insérer les données récupérées pour la page actuelle
+      await insertData!(data);
+      console.log(`Page ${page} insérée (${data.length} lignes).`);
       page++;
-    }
-    //console.log('Téléchargement terminé.');
+    } while (data.length === pageSize); // Tant que la page contient le nombre maximum d'enregistrements
+
+    console.log('Téléchargement terminé.');
   } catch (error) {
     console.error('Erreur lors du téléchargement des données :', error);
   }
@@ -267,7 +320,6 @@ export const fetchDataByDynamicColumns = async (
     throw error; // Propagation de l'erreur pour une gestion externe
   }
 };
-
 
 export const fetchUniqueValues = async (column: string) => {
   const db = await initializeDatabase();
@@ -416,7 +468,7 @@ export const fetchReferencesWithIndicators = async (
 
     // 🔹 Requête SQL principale avec classement des références
     const query = `
-      SELECT 
+     SELECT
         ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
         ${referenceColumn} AS reference, 
         ${eanColumn} AS ean, 
@@ -425,6 +477,7 @@ export const fetchReferencesWithIndicators = async (
       ${whereClause}
       ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
       LIMIT ?;
+    ;
     `;
 
     queryParams.push(limit);
