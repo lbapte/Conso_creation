@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  metro:
+    build: .
+    container_name: metro-bundler
+    ports:
+      - "8081:8081"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: ["npm", "start"]

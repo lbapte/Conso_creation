@@ -1,1 +1,1 @@
-export let API_URL = 'http://10.101.0.87:5000';
+export let API_URL = 'http://localhost:5000';

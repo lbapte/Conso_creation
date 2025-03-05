@@ -10,7 +10,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { API_URL } from '../utils/apiUrl';
-import { fetchDataPage, getRemoteTotalRowCount,cleanTable } from '../utils/database';
+import { fetchDataPage, getRemoteTotalRowCount,cleanTable,loadingData } from '../utils/database';
 import LogoBlanc from '../assets/svg/LogoBlanc.svg';
 
 export default function SettingsScreen({ onClose }) {
@@ -108,6 +108,7 @@ export default function SettingsScreen({ onClose }) {
     } finally {
       setIsLoading(false);
     }
+    loadingData();
   };
 
   return (
