@@ -297,16 +297,13 @@ export const loadingData = async () => {
  * @returns Promesse avec les données récupérées
  */
 export const fetchDataByDynamicColumns = async (
-  filters: { ean: string; periode: string; periodeComparaison: string; circuit: string },
+  filters: { ean: string; periode: string; periodeComparaison: string; circuit: string; eanComp: string; },
   columns: { codeEAN: string[]; circuit: string[]; periode: string[]; indicateur: string[] }
 ): Promise<any[]> => {
-  //console.log(filters," changement ",columns);
-  const db = await initializeDatabase();
-  const { ean, periode, periodeComparaison, circuit } = filters;
-  const { codeEAN, circuit: circuitCols, periode: periodeCols, indicateur } = columns;
 
-  //console.log("ean",ean,"periode",periode,"circuit",circuit);
-  //console.log("circuits",circuitCols,"periode",periodeCols,"indicateurs",indicateur);
+  const db = await initializeDatabase();
+  const { ean, periode, periodeComparaison, circuit, eanComp } = filters;
+  const { codeEAN, circuit: circuitCols, periode: periodeCols, indicateur } = columns;
 
   // Construire la requête SQL dynamique
   const query = `
@@ -315,16 +312,14 @@ export const fetchDataByDynamicColumns = async (
     WHERE ${codeEAN[0]} = ? AND ${periodeCols[0]} = ? AND ${circuitCols[0]} = ?
   `;
 
- //console.log(query);
- //console.log("dans la fonction");
+  console.log(ean,eanComp);
 
   try {
     // Exécution de la requête
     const resultat1 = await db.getAllAsync(query, [ean, periode, circuit]);
-    const resultat2 = await db.getAllAsync(query, [ean, periodeComparaison, circuit]);
+    const resultat2 = await db.getAllAsync(query, [eanComp, periodeComparaison, circuit]);
 
     const results=[resultat1,resultat2];
-    //console.log('Requête traitée avec succès');
     return results; // Retourne les résultats sous forme de tableau
   } catch (error) {
     console.error('Erreur lors de la récupération des données :', error);

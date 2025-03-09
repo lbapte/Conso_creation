@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,Modal, TextInput, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform} from 'react-native';
+import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,Modal, TextInput, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform,Switch} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { fetchDataByDynamicColumns,fetchReferences, fetchFilteredColumnValue,fetchReferencesWithIndicators,codeEAN, circuit, periode, indicateur, valeurPeriodes, valeurcircuit,segmentation,denominationProduit } from '../utils/database';
 import { FontAwesome } from '@expo/vector-icons';
@@ -41,6 +41,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   });
   const [isAdvancedFilterEnabled, setIsAdvancedFilterEnabled] = useState(false);
   const [advancedFilterModalVisible, setAdvancedFilterModalVisible] = useState(false);
+  const [comparaison, setComparaison] = useState(false);
 
   const [showDetailedIndicators, setShowDetailedIndicators] = useState(true); //gère l'affichage des partie moyennes et basses des indicateurs en header
   const baseIndicatorHeight = 80; // Hauteur de base pour le titre et la valeur dans la partie header
@@ -66,6 +67,10 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const resetAdvancedFilter = () => {
     setAdvancedFilter({ indicator: '', operator: '', value: '' });
     setIsAdvancedFilterEnabled(false);
+  };
+
+  const toggleComparaison = (value) => {
+    setComparaison(value);
   };
 
   const openModal = (filterType: string) => {
@@ -99,7 +104,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const loadData = async () => {
     try {
       const result = await fetchDataByDynamicColumns(
-        { ean, periode: selectedPeriode, periodeComparaison :selectedComparisonPeriode, circuit: selectedCircuit },
+        { ean, periode: selectedPeriode, periodeComparaison :selectedComparisonPeriode, circuit: selectedCircuit,eanComp :ean,},
         { codeEAN, circuit, periode, indicateur }
       );
       setData(result); // Met à jour les données
@@ -177,16 +182,15 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     filterValue 
   ]);  
 
-
-
-  const fetchIndicatorsForReference = async (ean: string) => {
+  const fetchIndicatorsForReference = async (ean: string, eanComp : string, periodeComparaison:string) => {
     try {
       const result = await fetchDataByDynamicColumns(
         {
           ean,
           periode: selectedPeriode,
-          periodeComparaison: selectedComparisonPeriode,
+          periodeComparaison,
           circuit: selectedCircuit,
+          eanComp,
         },
         { codeEAN, circuit, periode, indicateur }
       );
@@ -203,7 +207,27 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       setIndicatorsData([]);
     } else {
       setExpandedRef(ean);
-      await fetchIndicatorsForReference(ean);
+      
+      if(comparaison){
+        const eanComp = ean;
+        await fetchIndicatorsForReference(ean,eanComp,selectedComparisonPeriode);
+      } else {
+        const eanComp = barcode;
+        await fetchIndicatorsForReference(ean,eanComp,selectedPeriode);
+      }
+    }
+  };
+
+  const toggleReferenceWithoutClosing = async (ean: string, newComparaison: boolean) => {
+    // Garder le menu déroulant ouvert
+    setExpandedRef(ean);
+    
+    if (newComparaison) {
+      // Si le switch est activé, utiliser selectedComparisonPeriode et ean pour les deux requêtes
+      await fetchIndicatorsForReference(ean, ean, selectedComparisonPeriode);
+    } else {
+      // Sinon, utiliser la période principale et le barcode comme comparaison
+      await fetchIndicatorsForReference(ean, barcode, selectedPeriode);
     }
   };
 
@@ -381,7 +405,8 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
             </View>
           ))}
         </ScrollView>
-        <TouchableOpacity
+
+        {/*<TouchableOpacity
           style={styles.toggleDetailsButton}
           onPress={() => setShowDetailedIndicators(prev => !prev)}
         >
@@ -389,6 +414,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
             {showDetailedIndicators ? "Afficher moins" : "Afficher plus"}
           </Text>
         </TouchableOpacity>
+        */}
         </View>
       </View>
 
@@ -581,7 +607,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       <View style={styles.rankingContainer}>
         <Text style={styles.rankingText}>
           {scannedRank 
-            ? `Classement sur cet indicateur : ${scannedRank}`
+            ? `Classement de la référence sur cet indicateur : ${scannedRank}`
             : "Référence non trouvée dans le classement"}
         </Text>
       </View>
@@ -589,77 +615,99 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       <View style={styles.referencesSection}>
   
       <FlatList
-  data={referencesData[0]} // Affiche les références de la période actuelle
-  keyExtractor={(item, index) => index.toString()}
-  renderItem={({ item, index }) => (
-    <View>
-      {/* Ligne principale de la référence */}
-      <TouchableOpacity
-        style={styles.referenceItem}
-        onPress={() => toggleReference(item.ean)}
-      >
-        {/* Conteneur du chevron */}
-        <View style={styles.chevronContainer}>
-          <FontAwesome
-            name={expandedRef === item.ean ? 'chevron-up' : 'chevron-down'}
-            size={14}
-            color="#2B26BF"
-          />
-        </View>
-
-        {/* Conteneur de l'indicateur */}
-        <View style={styles.indicatorContainer}>
-          <Text style={styles.referenceIndicator}>{formatValue(item.indicatorValue)}</Text>
-        </View>
-
-        {/* Conteneur du nom de la référence */}
-        <View style={styles.referenceContainer}>
-          <Text style={styles.referenceTitle}>{item.reference}</Text>
-        </View>
-      </TouchableOpacity>
-
-      {/* Ligne de séparation */}
-      <View style={styles.separator} />
-
-      {/* Section extensible des indicateurs (avec la structure en 3 parties) */}
-      {expandedRef === item.ean && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.indicatorsWrapper}>
-          {indicateur.map((indicator, idx) => (
-            <View key={idx} style={styles.indicatorBox}>
-              <View style={styles.indicatorTopSection}>
-                <Text style={styles.indicatorTitle}>{indicator}</Text>
-                <Text style={styles.indicatorValue}>
-                  {formatValue(indicatorsData?.[0]?.[0]?.[indicator])}
-                </Text>
-              </View>
-              <View style={styles.indicatorMiddleSection}>
-                <Text style={styles.indicatorSubTitle}>Écart</Text>
-                <Text style={styles.indicatorDelta}>
-                  {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                  indicatorsData?.[1]?.[0]?.[indicator] !== undefined
-                    ? formatValue(indicatorsData[1][0][indicator] - indicatorsData[0][0][indicator])
-                    : '-'}
-                </Text>
-              </View>
-              <View style={styles.indicatorBottomSection}>
-                <Text style={styles.indicatorSubTitle}>Évolution</Text>
-                <Text style={styles.indicatorEvolution}>
-                  {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                  indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
-                  indicatorsData[0][0][indicator] !== 0
-                    ? (
-                        ((indicatorsData[1][0][indicator] - indicatorsData[0][0][indicator]) /
-                          indicatorsData[0][0][indicator]) *
-                        100
-                      ).toFixed(1) + '%'
-                    : '-'}
-                </Text>
-              </View>
+        data={referencesData[0]} // Affiche les références de la période actuelle
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={({ item, index }) => (
+          <View>
+          {/* Ligne principale de la référence */}
+          <TouchableOpacity
+            style={styles.referenceItem}
+            onPress={() => toggleReference(item.ean)}
+          >
+            {/* Conteneur du chevron */}
+            <View style={styles.chevronContainer}>
+              <FontAwesome
+                name={expandedRef === item.ean ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color="#2B26BF"
+              />
             </View>
-          ))}
-        </ScrollView>
-      )}
-    </View>
+    
+            {/* Conteneur de l'indicateur */}
+            <View style={styles.indicatorContainer}>
+              <Text style={styles.referenceIndicator}>{formatValue(item.indicatorValue)}</Text>
+            </View>
+    
+            {/* Conteneur du nom de la référence */}
+            <View style={styles.referenceContainer}>
+              <Text style={styles.referenceTitle}>{item.reference}</Text>
+            </View>
+          </TouchableOpacity>
+    
+          {/* Section extensible des indicateurs */}
+          {expandedRef === item.ean && (
+            <>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.indicatorsWrapper}>
+                {indicateur.map((indicator, idx) => (
+                  <View key={idx} style={styles.indicatorBox}>
+                    <View style={styles.indicatorTopSection}>
+                      <Text style={styles.indicatorTitle}>{indicator}</Text>
+                      <Text style={styles.indicatorValue}>
+                        {formatValue(indicatorsData?.[0]?.[0]?.[indicator])}
+                      </Text>
+                    </View>
+                    <View style={styles.indicatorMiddleSection}>
+                      <Text style={styles.indicatorSubTitle}>Écart</Text>
+                      <Text style={styles.indicatorDelta}>
+                        {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                        indicatorsData?.[1]?.[0]?.[indicator] !== undefined
+                          ? formatValue(indicatorsData[1][0][indicator] - indicatorsData[0][0][indicator])
+                          : '-'}
+                      </Text>
+                    </View>
+                    <View style={styles.indicatorBottomSection}>
+                      <Text style={styles.indicatorSubTitle}>Évolution</Text>
+                      <Text style={styles.indicatorEvolution}>
+                        {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                        indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
+                        indicatorsData[0][0][indicator] !== 0
+                          ? (
+                              ((indicatorsData[1][0][indicator] - indicatorsData[0][0][indicator]) /
+                                indicatorsData[0][0][indicator]) *
+                              100
+                            ).toFixed(1) + '%'
+                          : '-'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+    
+              {/* Bouton switch pour activer/désactiver la comparaison */}
+              <View style={styles.switchContainer}>
+                <Switch
+                  style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                  value={comparaison}
+                  onValueChange={(value) => {
+                    // Met à jour l'état du switch
+                    setComparaison(value);
+                    // Utilise la nouvelle valeur du switch pour mettre à jour les indicateurs
+                    toggleReferenceWithoutClosing(item.ean, value);
+                  }}
+                  ios_backgroundColor="#d3d3d3"
+                  trackColor={{ false: '#e0e0e0', true: '#2B26BF' }}
+                  thumbColor={comparaison ? '#ffffff' : '#ffffff'}
+                />
+                <Text style={styles.switchText}>
+                  Comparer avec la ref scannée
+                </Text>
+              </View>
+            </>
+          )}
+    
+          {/* Ligne de séparation */}
+          <View style={styles.separator} />
+        </View>
   )}
 
                 /* ✅ Vérification que la fonction s'exécute */
@@ -839,7 +887,9 @@ const styles = StyleSheet.create({
   },
   indicatorTopSection: {
     flex: 1.5,
-    backgroundColor: 'white',
+    backgroundColor: 'transparent',
+    borderWidth:0,
+    borderColor:'white',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 4,
@@ -1063,7 +1113,7 @@ const styles = StyleSheet.create({
   rankingContainer: {
     alignItems: 'center',
     borderRadius: 8,
-    paddingVertical:5,
+    paddingVertical:0,
   },
   rankingText: {
     fontSize: 14,
@@ -1084,6 +1134,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,  // Espacement sur les côtés
     marginBottom: 10, // Espacement sous la section
   },
+
+  container: {
+    flexDirection: 'row',  // Affichage en ligne pour le switch et le texte
+    alignItems: 'center',  // Centrage vertical
+    marginVertical: 10,
+  },
+  text: {
+    marginLeft: 10,
+    fontSize: 16,
+  },
+  switchContainer: {
+    display:'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: 10,
+    //paddingHorizontal: 10,
+  },
+  switchText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#333',
+  },
+
 });
 
 export default AppPage;

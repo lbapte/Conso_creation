@@ -169,7 +169,7 @@ const SegmentationPage = () => {
 
   useEffect(() => {
     setActiveFilterCount(selectedFilters.filter(f => f !== 'Aucun filtre').length);
-  }, [selectedFilters]);
+  }, [selectedFilters,sortOrder]);
 
   // -----------------------------------
   // FONCTIONS D'ACCÈS AUX SOUS-NIVEAUX
@@ -356,7 +356,9 @@ const SegmentationPage = () => {
       setFilteredData(data);
     };
     updateData();
-  }, [selectedFilters, advancedFilter]);
+    setExpandedItems({});
+    setDynamicData({})
+  }, [selectedFilters, advancedFilter, sortOrder, selectedCircuit, selectedPeriod, filtrerVia]);
 
   // -----------------------------------
   // LOGIQUE "AVANCÉE" : VALIDER / EFFACER
@@ -492,7 +494,7 @@ const SegmentationPage = () => {
               style={styles.arrowButton}
               onPress={() => setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'))}
             >
-              <View style={{ flexDirection: 'column', alignItems: 'center' }}>
+              <View style={styles.arrowContainer}>
                 <FontAwesome
                   name="arrow-up"
                   size={14}
@@ -506,32 +508,40 @@ const SegmentationPage = () => {
               </View>
             </TouchableOpacity>
 
+
             {/* Bouton "Filtrer via" (25%) */}
             <TouchableOpacity
-              style={styles.filterViaButton}
-              onPress={() => setFiltrerViaModalVisible(true)}
-            >
-              <Text style={styles.filterViaText}>Filtrer via</Text>
-              <Text style={styles.filterViaSelected}>{filtrerVia}</Text>
-            </TouchableOpacity>
+            style={styles.filterViaButton}
+            onPress={() => setFiltrerViaModalVisible(true)}
+          >
+            <Text style={styles.filterViaText}>Trier selon</Text>
+            <Text style={styles.filterViaSelected} numberOfLines={1} ellipsizeMode="tail">
+              {filtrerVia}
+            </Text>
+          </TouchableOpacity>
 
-            {/* Bouton pour le choix du Circuit (25%) */}
-            <TouchableOpacity
-              style={styles.circuitButton}
-              onPress={() => setCircuitModalVisible(true)}
-            >
-              <Text style={styles.circuitButtonText}>Circuit</Text>
-              <Text style={styles.circuitSelected}>{selectedCircuit || circuit[0]}</Text>
-            </TouchableOpacity>
+          {/* Bouton pour le choix du Circuit (25%) */}
+          <TouchableOpacity
+            style={styles.circuitButton}
+            onPress={() => setCircuitModalVisible(true)}
+          >
+            <Text style={styles.circuitButtonText}>Circuit</Text>
+            <Text style={styles.circuitSelected} numberOfLines={1} ellipsizeMode="tail">
+              {selectedCircuit || circuit[0]}
+            </Text>
+          </TouchableOpacity>
 
-            {/* Bouton pour le choix de la Période (25%) */}
-            <TouchableOpacity
-              style={styles.periodButton}
-              onPress={() => setPeriodModalVisible(true)}
-            >
-              <Text style={styles.periodButtonText}>Période</Text>
-              <Text style={styles.periodSelected}>{selectedPeriod || periode[0]}</Text>
-            </TouchableOpacity>
+          {/* Bouton pour le choix de la Période (25%) */}
+          <TouchableOpacity
+            style={styles.periodButton}
+            onPress={() => setPeriodModalVisible(true)}
+          >
+            <Text style={styles.periodButtonText}>Période</Text>
+            <Text style={styles.periodSelected} numberOfLines={1} ellipsizeMode="tail">
+              {selectedPeriod || periode[0]}
+            </Text>
+          </TouchableOpacity>
+
             
           </View>
 
@@ -549,7 +559,6 @@ const SegmentationPage = () => {
           {/* SECTION AVANCÉE : affichage conditionnel */}
           {showAdvancedFilter && (
             <View style={styles.advancedFilterContainer}>
-              <Text style={styles.advancedFilterTitle}>Filtre avancé</Text>
 
               {/* 2 boutons : Indicateur ou Segmentation */}
               <View style={styles.selectionButtonsContainer}>
@@ -835,9 +844,20 @@ const SegmentationPage = () => {
                                 handleReferenceClick(referenceItem.codeEAN, referenceItem.intitule)
                               }
                             >
-                              <Text>{referenceItem.filtrerViaValue}</Text>
-                              <Text>{referenceItem.intitule}</Text>
-                              <View style={styles.separator} />
+                             <View style={styles.referenceRow}>
+                                {(filtrerVia && selectedPeriod && selectedCircuit && referenceItem.filtrerViaValue !== undefined) && (
+                                  <Text style={styles.indicatorText}>
+                                    {(() => {
+                                      const value = Number(referenceItem.filtrerViaValue);
+                                      if (value > 30) return value.toFixed(0);
+                                      if (value > 10) return value.toFixed(1);
+                                      return value.toFixed(2);
+                                    })()}
+                                  </Text>
+                                )}
+                                <Text style={styles.referenceText}>{referenceItem.intitule}</Text>
+                              </View>
+                            <View style={styles.separator} />
                             </TouchableOpacity>
                           )}
                         />
@@ -907,7 +927,19 @@ const SegmentationPage = () => {
                                             )
                                           }
                                         >
-                                          <Text>{referenceItem.intitule}</Text>
+                                           <View style={styles.referenceRow}>
+                                              {(filtrerVia && selectedPeriod && selectedCircuit && referenceItem.filtrerViaValue !== undefined) && (
+                                                <Text style={styles.indicatorText}>
+                                                  {(() => {
+                                                    const value = Number(referenceItem.filtrerViaValue);
+                                                    if (value > 30) return value.toFixed(0);
+                                                    if (value > 10) return value.toFixed(1);
+                                                    return value.toFixed(2);
+                                                  })()}
+                                                </Text>
+                                              )}
+                                              <Text style={styles.referenceText}>{referenceItem.intitule}</Text>
+                                            </View>
                                           <View style={styles.separator} />
                                         </TouchableOpacity>
                                       )}
@@ -1013,7 +1045,19 @@ const SegmentationPage = () => {
                                                         )
                                                       }
                                                     >
-                                                      <Text>{referenceItem.intitule}</Text>
+                                                       <View style={styles.referenceRow}>
+                                                          {(filtrerVia && selectedPeriod && selectedCircuit && referenceItem.filtrerViaValue !== undefined) && (
+                                                            <Text style={styles.indicatorText}>
+                                                              {(() => {
+                                                                const value = Number(referenceItem.filtrerViaValue);
+                                                                if (value > 30) return value.toFixed(0);
+                                                                if (value > 10) return value.toFixed(1);
+                                                                return value.toFixed(2);
+                                                              })()}
+                                                            </Text>
+                                                          )}
+                                                          <Text style={styles.referenceText}>{referenceItem.intitule}</Text>
+                                                        </View>
                                                       <View style={styles.separator} />
                                                     </TouchableOpacity>
                                                   )}
@@ -1119,68 +1163,80 @@ const SegmentationPage = () => {
             </View>
           </Modal>
 
-          <Modal
-            visible={circuitModalVisible}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setCircuitModalVisible(false)}
-          >
-            <View style={styles.modalContainer}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Choisir un circuit</Text>
-                <FlatList
-                  data={circuitOptions}
-                  keyExtractor={(item, index) => `circuit-${index}`}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.modalOption}
-                      onPress={() => {
-                        setSelectedCircuit(item);
-                        setCircuitModalVisible(false);
-                      }}
-                    >
-                      <Text style={styles.modalOptionText}>{item}</Text>
-                    </TouchableOpacity>
-                  )}
-                />
-                <TouchableOpacity style={styles.closeButton} onPress={() => setCircuitModalVisible(false)}>
-                  <Text style={styles.closeButtonText}>Fermer</Text>
-                </TouchableOpacity>
-              </View>
+          {/* Modal pour le choix du Circuit */}
+        <Modal
+          visible={circuitModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setCircuitModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Choisir un circuit</Text>
+              <FlatList
+                data={circuitOptions}
+                keyExtractor={(item, index) => `circuit-${index}`}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalOption,
+                      item === selectedCircuit && styles.selectedOption,
+                    ]}
+                    onPress={() => {
+                      setSelectedCircuit(item);
+                      setCircuitModalVisible(false);
+                    }}
+                  >
+                    <Text style={item === selectedCircuit ? styles.selectedOptionText : styles.modalOptionText}>
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+              <TouchableOpacity style={styles.closeButton} onPress={() => setCircuitModalVisible(false)}>
+                <Text style={styles.closeButtonText}>Fermer</Text>
+              </TouchableOpacity>
             </View>
-          </Modal>
+          </View>
+        </Modal>
 
-          {/* Modale pour le choix de la Période */}
-          <Modal
-            visible={periodModalVisible}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setPeriodModalVisible(false)}
-          >
-            <View style={styles.modalContainer}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Choisir une période</Text>
-                <FlatList
-                  data={periodeOptions}
-                  keyExtractor={(item, index) => `periode-${index}`}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.modalOption}
-                      onPress={() => {
-                        setSelectedPeriod(item);
-                        setPeriodModalVisible(false);
-                      }}
-                    >
-                      <Text style={styles.modalOptionText}>{item}</Text>
-                    </TouchableOpacity>
-                  )}
-                />
-                <TouchableOpacity style={styles.closeButton} onPress={() => setPeriodModalVisible(false)}>
-                  <Text style={styles.closeButtonText}>Fermer</Text>
-                </TouchableOpacity>
-              </View>
+        {/* Modal pour le choix de la Période */}
+        <Modal
+          visible={periodModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setPeriodModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Choisir une période</Text>
+              <FlatList
+                data={periodeOptions}
+                keyExtractor={(item, index) => `periode-${index}`}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalOption,
+                      item === selectedPeriod && styles.selectedOption,
+                    ]}
+                    onPress={() => {
+                      setSelectedPeriod(item);
+                      setPeriodModalVisible(false);
+                    }}
+                  >
+                    <Text style={item === selectedPeriod ? styles.selectedOptionText : styles.modalOptionText}>
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+              <TouchableOpacity style={styles.closeButton} onPress={() => setPeriodModalVisible(false)}>
+                <Text style={styles.closeButtonText}>Fermer</Text>
+              </TouchableOpacity>
             </View>
-          </Modal>
+          </View>
+        </Modal>
+
 
 
           {/* Modal pour afficher la page résultat lors du clic sur une référence */}
@@ -1201,6 +1257,7 @@ const SegmentationPage = () => {
 export default SegmentationPage;
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
     padding: 10,
@@ -1239,13 +1296,21 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 10,
     alignItems: 'center',
+    justifyContent:'center',
   },
-  // Bouton avec picto flèche : 5% de la largeur, sans bordure
+ 
   arrowButton: {
-    width: '5%',
+    // You can adjust the width as needed; for example:
+    width: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  arrowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },  
+
   // Bouton "Filtrer via" : 25% de la largeur, avec indication sous le texte
   filterViaButton: {
     width: '25%',
@@ -1529,4 +1594,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'gray',
   },
+
+
+  referenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  indicatorText: {
+    color: 'blue',
+    marginRight: 8,
+  },
+  referenceText: {
+    flex: 1,
+    // Ajoutez d'autres styles si nécessaire (ex: fontSize, color, etc.)
+  },
+  
+  
+
 });

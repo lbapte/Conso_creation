@@ -10,7 +10,12 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { API_URL } from '../utils/apiUrl';
-import { fetchDataPage, getRemoteTotalRowCount,cleanTable,loadingData } from '../utils/database';
+import { 
+  fetchDataPage, 
+  getRemoteTotalRowCount, 
+  cleanTable, 
+  loadingData  // Cette fonction doit pouvoir utiliser un callback pour la progression
+} from '../utils/database';
 import LogoBlanc from '../assets/svg/LogoBlanc.svg';
 
 export default function SettingsScreen({ onClose }) {
@@ -26,6 +31,8 @@ export default function SettingsScreen({ onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0); // en pourcentage
   const [currentPage, setCurrentPage] = useState(0);
+  // Pour indiquer la phase en cours : 'download' ou 'insertion'
+  const [phase, setPhase] = useState('download');
 
   // Calcul de la largeur totale de la barre de progression (80% de la largeur de l'écran)
   const screenWidth = Dimensions.get('window').width;
@@ -74,47 +81,62 @@ export default function SettingsScreen({ onClose }) {
     alert('Déconnexion réussie');
   };
 
-  // Fonction qui gère le téléchargement page par page et met à jour la progression
+  // Fonction qui gère le téléchargement et l'insertion en deux phases
   const handleLoadData = async () => {
     setIsLoading(true);
     setProgress(0);
     setCurrentPage(0);
+    setPhase('download');
     try {
-      // Récupérer le nombre total de lignes disponibles (via API)
+      // ----- PHASE 1 : Téléchargement des données -----
       const totalRows = await getRemoteTotalRowCount('TD_oui'); // adapter le nom de la table distante
       const pageSize = 1000;
-      const sqlTable = `${companyName}_oui`
       let pageNumber = 1;
       let loadedRows = 0;
       let data = [];
 
+      // Nettoyer la table locale
       cleanTable('data');
 
       do {
         setCurrentPage(pageNumber);
+        // Ici, fetchDataPage télécharge ET insère la page dans la BDD,
+        // mais on met à jour la progression basée sur le nombre de lignes récupérées
         data = await fetchDataPage('TD_oui', 'data', pageSize, pageNumber);
         loadedRows += data.length;
-        // Calcul du pourcentage de progression basé sur le total récupéré
         let calcProgress = (loadedRows / totalRows) * 100;
         if (calcProgress > 100) calcProgress = 100;
         setProgress(calcProgress);
         pageNumber++;
       } while (data.length === pageSize);
 
-      alert('Données chargées avec succès');
+      alert('Téléchargement terminé');
+      
+      // ----- PHASE 2 : Insertion des données dans SQLite -----
+      // On réinitialise la barre de progression pour la phase d'insertion.
+      setProgress(0);
+      setPhase('insertion');
+
+      // On suppose ici que loadingData est une fonction qui gère l'insertion
+      // et qui accepte un callback pour mettre à jour la progression.
+      await loadingData((insertionProgress) => {
+        // insertionProgress est ici une valeur entre 0 et 100.
+        setProgress(insertionProgress);
+      });
+
+      alert('Insertion des données réussie');
     } catch (error) {
       console.error('Erreur lors du chargement des données :', error);
       alert('Erreur lors du chargement des données');
     } finally {
       setIsLoading(false);
     }
-    loadingData();
   };
 
   return (
     <LinearGradient colors={['#454AD8', '#7579FF']} style={styles.gradientBackground}>
       <View style={styles.backgroundContainer}>
-        <LogoBlanc style={styles.backgroundLogo} width={400} height={400}/>
+        <LogoBlanc style={styles.backgroundLogo} width={400} height={400} />
       </View>
       <View style={styles.header}>
         <TouchableOpacity onPress={onClose} style={styles.backButton}>
@@ -135,9 +157,15 @@ export default function SettingsScreen({ onClose }) {
             </TouchableOpacity>
             {isLoading && (
               <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>
-                  Chargement en cours... - {progress.toFixed(0)}%
-                </Text>
+                {phase === 'download' ? (
+                  <Text style={styles.loadingText}>
+                    Téléchargement en cours... - {progress.toFixed(0)}%
+                  </Text>
+                ) : (
+                  <Text style={styles.loadingText}>
+                    Insertion en cours... - {progress.toFixed(0)}%
+                  </Text>
+                )}
                 <View style={[styles.progressBar, { width: progressBarTotalWidth }]}>
                   <View
                     style={[
@@ -146,6 +174,9 @@ export default function SettingsScreen({ onClose }) {
                     ]}
                   />
                 </View>
+                {phase === 'download' && (
+                  <Text style={styles.pageText}>Page {currentPage}</Text>
+                )}
               </View>
             )}
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -189,10 +220,8 @@ export default function SettingsScreen({ onClose }) {
 }
 
 const styles = StyleSheet.create({
-
-  
   gradientBackground: { flex: 1, padding: 20 },
-   backgroundContainer: {
+  backgroundContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -202,7 +231,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backgroundLogo: { position: 'absolute',opacity:0.3,transform: [{ rotate: '-20deg' },{scale:1.6}] },
+  backgroundLogo: {
+    position: 'absolute',
+    opacity: 0.3,
+    transform: [{ rotate: '-20deg' }, { scale: 1.6 }],
+  },
   header: { marginTop: 40 },
   backButton: { marginBottom: 20 },
   backButtonText: { color: '#FFFFFF', fontSize: 18 },
@@ -241,13 +274,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   progressBar: {
-    height: 7,             // Hauteur de la barre
-    backgroundColor: 'white', // Fond gris clair
+    height: 7,
+    backgroundColor: 'white',
     borderRadius: 10,
     overflow: 'hidden',
   },
   progress: {
     height: '100%',
-    backgroundColor: '#98FFBF', // Couleur de la progression
+    backgroundColor: '#98FFBF',
   },
+  pageText: { color: '#FFFFFF', marginTop: 5 },
 });
