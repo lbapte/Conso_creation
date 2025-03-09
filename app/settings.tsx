@@ -212,10 +212,10 @@ const styles = StyleSheet.create({
   subtitle: { color: '#FFFFFF', fontSize: 16, marginBottom: 20 },
   mainButton: {
     backgroundColor: '#98FFBF',
-    padding: 15,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 100,
     marginBottom: 20,
-    width: '80%',
+    width: '60%',
     alignItems: 'center',
   },
   mainButtonText: { color: '#454AD8', fontSize: 18 },
@@ -225,15 +225,15 @@ const styles = StyleSheet.create({
   title: { color: '#FFFFFF', fontSize: 22, marginBottom: 20 },
   inputContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 8,
-    padding: 10,
+    borderRadius: 100,
+    padding: 12,
     marginBottom: 15,
     width: '80%',
   },
   input: { color: '#FFFFFF', fontSize: 16 },
   loadingContainer: {
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: 10,
   },
   loadingText: {
     color: '#FFFFFF',
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   progressBar: {
-    height: 10,             // Hauteur de la barre
+    height: 7,             // Hauteur de la barre
     backgroundColor: 'white', // Fond gris clair
     borderRadius: 10,
     overflow: 'hidden',

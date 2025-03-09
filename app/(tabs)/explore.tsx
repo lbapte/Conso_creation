@@ -1,4 +1,3 @@
-// SegmentationPage.tsx
 import React, { useState, useEffect } from 'react';
 import { FontAwesome } from '@expo/vector-icons';
 import {
@@ -17,15 +16,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  fetchColumnsByType,
-  segmentation,
-  denominationProduit,
-  indicateur,
-  periode,
-  circuit,
-  codeEAN,
-} from '../../utils/columnConfig';
-import {
   fetchUniqueValuesBySegmentation,
   fetchUniqueValuesForSubFilter,
   fetchUniqueValuesForThirdFilter,
@@ -33,6 +23,13 @@ import {
   fetchUniqueValuesForReferencesOne,
   fetchUniqueValuesForReferencesTwo,
   fetchUniqueValues,
+  fetchColumnsByType,
+  segmentation,
+  denominationProduit,
+  indicateur,
+  periode,
+  circuit,
+  codeEAN,
 } from '../../utils/database';
 import {
   insertHistoriqueEntry,
@@ -71,7 +68,7 @@ const SegmentationPage = () => {
     column: string;
     operator: string;
     value: string;
-    type: string;   // <-- pour savoir si on cast ou pas
+    type: string;
     circuit?: string;
     period?: string;
   } | null>(null);
@@ -84,14 +81,23 @@ const SegmentationPage = () => {
   const [selectedEan, setSelectedEan] = useState<string | null>(null);
   const [refModalVisible, setRefModalVisible] = useState(false);
 
+  // Affichage du filtre avancé
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
 
   // États pour l'autocomplétion (uniquement si segmentation)
   const [autoCompleteOptions, setAutoCompleteOptions] = useState<any[]>([]);
 
+  // Nouveaux états pour le tri et le "Filtrer via"
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [filtrerViaModalVisible, setFiltrerViaModalVisible] = useState(false);
+  const [filtrerVia, setFiltrerVia] = useState<string>('Aucun filtre');
+
+  // Nouveaux états pour les modales de sélection de Circuit et Période
+  const [circuitModalVisible, setCircuitModalVisible] = useState(false);
+  const [periodModalVisible, setPeriodModalVisible] = useState(false);
+
   const numericOperators = ['=', '>', '<'];
   const textOperators = ['=', '!='];
-
 
   // -----------------------------------
   // SHIFT FILTERS & INIT
@@ -216,7 +222,13 @@ const SegmentationPage = () => {
     }
   };
 
-  const fetchReferenceItems = async (firstValue: string, secondValue: string, thirdValue: string) => {
+  const fetchReferenceItems = async (
+    filtrerVia: string,
+    sortOrder: 'asc' | 'desc',
+    firstValue: string,
+    secondValue: string,
+    thirdValue: string
+  ) => {
     const compositeKey = `${selectedFilters[0]}-${firstValue}-${selectedFilters[1]}-${secondValue}-${selectedFilters[2]}-${thirdValue}`;
     if (!dynamicData[compositeKey]) {
       try {
@@ -231,7 +243,11 @@ const SegmentationPage = () => {
           thirdValue,
           circuit[0],
           periode[0],
+          selectedCircuit,
+          selectedPeriod,
           advancedFilter,
+          filtrerVia,
+          sortOrder,
         );
         setDynamicData(prev => ({ ...prev, [compositeKey]: data }));
       } catch (error) {
@@ -240,9 +256,11 @@ const SegmentationPage = () => {
     }
   };
 
-  console.log(advancedFilter);
-
-  const fetchReferencesForOneFilter = async (firstValue: string) => {
+  const fetchReferencesForOneFilter = async (
+    filtrerVia: string,
+    sortOrder: 'asc' | 'desc',
+    firstValue: string
+  ) => {
     const key = `ref1-${selectedFilters[0]}-${firstValue}`;
     if (!dynamicData[key]) {
       try {
@@ -253,7 +271,11 @@ const SegmentationPage = () => {
           firstValue,
           circuit[0],
           periode[0],
-          advancedFilter
+          selectedCircuit,
+          selectedPeriod,
+          advancedFilter,
+          filtrerVia,
+          sortOrder,
         );
         setDynamicData(prev => ({ ...prev, [key]: data }));
       } catch (error) {
@@ -262,7 +284,12 @@ const SegmentationPage = () => {
     }
   };
 
-  const fetchReferencesForTwoFilters = async (firstValue: string, secondValue: string) => {
+  const fetchReferencesForTwoFilters = async (
+    filtrerVia: string,
+    sortOrder: 'asc' | 'desc',
+    firstValue: string,
+    secondValue: string
+  ) => {
     const key = `ref2-${selectedFilters[0]}-${firstValue}-${selectedFilters[1]}-${secondValue}`;
     if (!dynamicData[key]) {
       try {
@@ -275,7 +302,11 @@ const SegmentationPage = () => {
           secondValue,
           circuit[0],
           periode[0],
-          advancedFilter
+          selectedCircuit,
+          selectedPeriod,
+          advancedFilter,
+          filtrerVia,
+          sortOrder,
         );
         setDynamicData(prev => ({ ...prev, [key]: data }));
       } catch (error) {
@@ -290,13 +321,19 @@ const SegmentationPage = () => {
   const toggleExpandReferences1 = (firstValue: string) => {
     const key = `ref1-${selectedFilters[0]}-${firstValue}`;
     setExpandedItems(prev => ({ ...prev, [key]: !prev[key] }));
-    fetchReferencesForOneFilter(firstValue);
+    fetchReferencesForOneFilter(filtrerVia, sortOrder, firstValue);
   };
 
   const toggleExpandReferences2 = (firstValue: string, secondValue: string) => {
     const key = `ref2-${selectedFilters[0]}-${firstValue}-${selectedFilters[1]}-${secondValue}`;
     setExpandedItems(prev => ({ ...prev, [key]: !prev[key] }));
-    fetchReferencesForTwoFilters(firstValue, secondValue);
+    fetchReferencesForTwoFilters(filtrerVia, sortOrder, firstValue, secondValue);
+  };
+
+  const toggleExpandReference = (firstValue: string, secondValue: string, thirdValue: string) => {
+    const compositeKey = `${selectedFilters[0]}-${firstValue}-${selectedFilters[1]}-${secondValue}-${selectedFilters[2]}-${thirdValue}`;
+    setExpandedItems(prev => ({ ...prev, [compositeKey]: !prev[compositeKey] }));
+    fetchReferenceItems(filtrerVia, sortOrder, firstValue, secondValue, thirdValue);
   };
 
   const toggleExpandFirst = (item: string) => {
@@ -308,12 +345,6 @@ const SegmentationPage = () => {
     const compositeKey = `${selectedFilters[0]}-${firstValue}-${selectedFilters[1]}-${secondValue}`;
     setExpandedItems(prev => ({ ...prev, [compositeKey]: !prev[compositeKey] }));
     fetchThirdItems(firstValue, secondValue);
-  };
-
-  const toggleExpandReference = (firstValue: string, secondValue: string, thirdValue: string) => {
-    const compositeKey = `${selectedFilters[0]}-${firstValue}-${selectedFilters[1]}-${secondValue}-${selectedFilters[2]}-${thirdValue}`;
-    setExpandedItems(prev => ({ ...prev, [compositeKey]: !prev[compositeKey] }));
-    fetchReferenceItems(firstValue, secondValue, thirdValue);
   };
 
   // -----------------------------------
@@ -331,16 +362,14 @@ const SegmentationPage = () => {
   // LOGIQUE "AVANCÉE" : VALIDER / EFFACER
   // -----------------------------------
   const applyAdvancedFilter = () => {
-    setShowAdvancedFilter(prev => !prev)
-    // Si c'est la segmentation qui est choisie, on force l'opérateur à '='
+    setShowAdvancedFilter(prev => !prev);
     const finalOperator =
-  advancedOperator !== ''
-    ? advancedOperator
-    : (advancedSegmentation !== '' ? '=' : ''); 
+      advancedOperator !== ''
+        ? advancedOperator
+        : (advancedSegmentation !== '' ? '=' : '');
     const effectiveColumn = advancedIndicateur !== '' ? advancedIndicateur : advancedSegmentation;
 
     if (effectiveColumn && finalOperator && advancedValue) {
-      // On détermine le type selon si on a un indicateur (integer) ou une segmentation (text)
       const finalType: 'integer' | 'text' =
         advancedIndicateur !== '' ? 'integer' : 'text';
 
@@ -348,12 +377,11 @@ const SegmentationPage = () => {
         column: effectiveColumn,
         operator: finalOperator,
         value: advancedValue,
-        type: finalType,  // <-- important pour le cast ou pas
+        type: finalType,
         circuit: selectedCircuit,
         period: selectedPeriod,
       });
     } else {
-      // On enlève le filtre si tout n'est pas rempli
       setAdvancedFilter(null);
     }
     setExpandedItems({});
@@ -375,7 +403,6 @@ const SegmentationPage = () => {
   // AUTOCOMPLÉTION
   // -----------------------------------
   useEffect(() => {
-    // On ne fait l'autocomplétion que si on est en mode segmentation
     if (advancedSegmentation !== '') {
       if (!advancedValue || advancedValue.trim() === '') {
         setAutoCompleteOptions([]);
@@ -432,7 +459,7 @@ const SegmentationPage = () => {
   // RENDER
   // -----------------------------------
   return (
-     <KeyboardAvoidingView
+    <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
@@ -458,15 +485,66 @@ const SegmentationPage = () => {
             ))}
           </ScrollView>
 
-          {/* Bouton pour afficher/masquer le filtre avancé */}
+          {/* Boutons pour les actions du filtre */}
+          <View style={styles.filterActionsContainer}>
+            {/* Bouton avec le picto flèche (5%) */}
+            <TouchableOpacity
+              style={styles.arrowButton}
+              onPress={() => setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'))}
+            >
+              <View style={{ flexDirection: 'column', alignItems: 'center' }}>
+                <FontAwesome
+                  name="arrow-up"
+                  size={14}
+                  color={sortOrder === 'asc' ? "#2B26BF" : "gray"}
+                />
+                <FontAwesome
+                  name="arrow-down"
+                  size={14}
+                  color={sortOrder === 'desc' ? "#2B26BF" : "gray"}
+                />
+              </View>
+            </TouchableOpacity>
+
+            {/* Bouton "Filtrer via" (25%) */}
+            <TouchableOpacity
+              style={styles.filterViaButton}
+              onPress={() => setFiltrerViaModalVisible(true)}
+            >
+              <Text style={styles.filterViaText}>Filtrer via</Text>
+              <Text style={styles.filterViaSelected}>{filtrerVia}</Text>
+            </TouchableOpacity>
+
+            {/* Bouton pour le choix du Circuit (25%) */}
+            <TouchableOpacity
+              style={styles.circuitButton}
+              onPress={() => setCircuitModalVisible(true)}
+            >
+              <Text style={styles.circuitButtonText}>Circuit</Text>
+              <Text style={styles.circuitSelected}>{selectedCircuit || circuit[0]}</Text>
+            </TouchableOpacity>
+
+            {/* Bouton pour le choix de la Période (25%) */}
+            <TouchableOpacity
+              style={styles.periodButton}
+              onPress={() => setPeriodModalVisible(true)}
+            >
+              <Text style={styles.periodButtonText}>Période</Text>
+              <Text style={styles.periodSelected}>{selectedPeriod || periode[0]}</Text>
+            </TouchableOpacity>
+            
+          </View>
+
+          <View style={styles.filterActionsContainer}>
           <TouchableOpacity
-            style={styles.toggleButton}
-            onPress={() => setShowAdvancedFilter(prev => !prev)}
-          >
-            <Text style={styles.toggleButtonText}>
-              {showAdvancedFilter ? 'Masquer le filtre avancé' : 'Afficher le filtre avancé'}
-            </Text>
-          </TouchableOpacity>
+              style={styles.advancedToggleButton}
+              onPress={() => setShowAdvancedFilter(prev => !prev)}
+            >
+              <Text style={styles.advancedToggleText}>
+                {showAdvancedFilter ? 'Masquer le filtre avancé' : 'Afficher le filtre avancé'}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {/* SECTION AVANCÉE : affichage conditionnel */}
           {showAdvancedFilter && (
@@ -757,6 +835,7 @@ const SegmentationPage = () => {
                                 handleReferenceClick(referenceItem.codeEAN, referenceItem.intitule)
                               }
                             >
+                              <Text>{referenceItem.filtrerViaValue}</Text>
                               <Text>{referenceItem.intitule}</Text>
                               <View style={styles.separator} />
                             </TouchableOpacity>
@@ -999,6 +1078,111 @@ const SegmentationPage = () => {
             </View>
           </Modal>
 
+          {/* Modal pour Filtrer via */}
+          <Modal
+            visible={filtrerViaModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setFiltrerViaModalVisible(false)}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Filtrer via</Text>
+                <FlatList
+                  data={['Aucun filtre', ...indicateur]}
+                  keyExtractor={(item, index) => `filtrer-${index}`}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[
+                        styles.modalOption,
+                        item === filtrerVia && styles.selectedOption,
+                      ]}
+                      onPress={() => {
+                        setFiltrerVia(item);
+                        setFiltrerViaModalVisible(false);
+                      }}
+                    >
+                      <Text
+                        style={
+                          item === filtrerVia ? styles.selectedOptionText : styles.modalOptionText
+                        }
+                      >
+                        {item}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                />
+                <TouchableOpacity style={styles.closeButton} onPress={() => setFiltrerViaModalVisible(false)}>
+                  <Text style={styles.closeButtonText}>Fermer</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          <Modal
+            visible={circuitModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setCircuitModalVisible(false)}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Choisir un circuit</Text>
+                <FlatList
+                  data={circuitOptions}
+                  keyExtractor={(item, index) => `circuit-${index}`}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.modalOption}
+                      onPress={() => {
+                        setSelectedCircuit(item);
+                        setCircuitModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.modalOptionText}>{item}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
+                <TouchableOpacity style={styles.closeButton} onPress={() => setCircuitModalVisible(false)}>
+                  <Text style={styles.closeButtonText}>Fermer</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Modale pour le choix de la Période */}
+          <Modal
+            visible={periodModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setPeriodModalVisible(false)}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Choisir une période</Text>
+                <FlatList
+                  data={periodeOptions}
+                  keyExtractor={(item, index) => `periode-${index}`}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.modalOption}
+                      onPress={() => {
+                        setSelectedPeriod(item);
+                        setPeriodModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.modalOptionText}>{item}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
+                <TouchableOpacity style={styles.closeButton} onPress={() => setPeriodModalVisible(false)}>
+                  <Text style={styles.closeButtonText}>Fermer</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+
           {/* Modal pour afficher la page résultat lors du clic sur une référence */}
           <Modal
             visible={refModalVisible}
@@ -1021,17 +1205,19 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 10,
     backgroundColor: '#F5F5F5',
+    paddingBottom: -50,
   },
   filterContainer: {
-    marginBottom: 10,
+    marginBottom: 5,
     paddingVertical: 5,
-    maxHeight: 60,
-    minHeight: 60,
+    maxHeight: 50,
+    minHeight: 50,
   },
   filterButton: {
     padding: 10,
     borderRadius: 8,
     marginHorizontal: 5,
+
   },
   activeFilter: {
     backgroundColor: '#3A3FD4',
@@ -1047,7 +1233,52 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
-
+  // --- Conteneur pour les boutons d'actions du filtre ---
+  filterActionsContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  // Bouton avec picto flèche : 5% de la largeur, sans bordure
+  arrowButton: {
+    width: '5%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Bouton "Filtrer via" : 25% de la largeur, avec indication sous le texte
+  filterViaButton: {
+    width: '25%',
+    borderWidth: 1,
+    borderColor: '#3A3FD4',
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  filterViaText: {
+    fontWeight: 'bold',
+    color: 'black',
+  },
+  filterViaSelected: {
+    fontSize: 12,
+    color: 'gray',
+  },
+  // Bouton pour le filtre avancé : 70% de la largeur
+  advancedToggleButton: {
+    width: '70%',
+    padding: 10,
+    backgroundColor: 'transparent',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3A3FD4',
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  advancedToggleText: {
+    fontWeight: 'bold',
+    color: 'black',
+  },
   // --- Section avancée ---
   advancedFilterContainer: {
     backgroundColor: '#7579FF',
@@ -1060,7 +1291,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 8,
     color: 'white',
-    alignSelf:'center',
+    alignSelf: 'center',
   },
   selectionButtonsContainer: {
     flexDirection: 'row',
@@ -1075,13 +1306,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginHorizontal: 5,
     alignItems: 'center',
-    borderWidth:0,
-    borderColor:"white",
-
+    borderWidth: 0,
+    borderColor: "white",
   },
   selectedButton: {
     backgroundColor: '#3A3FD4',
-    borderWidth:0,
+    borderWidth: 0,
   },
   selectedButtonText: {
     color: 'white',
@@ -1102,14 +1332,13 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
-
   operatorScrollContainer: {
     width: '100%',
     marginBottom: 10,
   },
   operatorButton: {
     padding: 8,
-    backgroundColor:"#989AFF",
+    backgroundColor: "#989AFF",
     borderRadius: 4,
     marginHorizontal: 2,
     minWidth: 50,
@@ -1127,7 +1356,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
-
   modalSubtitle: {
     fontSize: 14,
     fontWeight: 'bold',
@@ -1170,7 +1398,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
     alignItems: 'center',
   },
-
   // --- Styles pour l'autocomplétion ---
   autoCompleteContainer: {
     backgroundColor: 'white',
@@ -1185,7 +1412,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-
   // --- Liste hiérarchique ---
   listItem: {
     flexDirection: 'row',
@@ -1224,7 +1450,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#3A3FD4',
     marginTop: 5,
   },
-
   // --- Modale "classique" (pour F1, F2, F3) ---
   modalContainer: {
     flex: 1,
@@ -1269,17 +1494,39 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
   },
-  toggleButton: {
-    padding: 10,
-    backgroundColor: 'transparent',
+  circuitButton: {
+    width: '25%',
+    borderWidth: 1,
+    borderColor: '#3A3FD4',
     borderRadius: 8,
-    marginBottom: 10,
-    borderWidth:1,
-    borderColor:'#3A3FD4',
+    padding: 10,
     alignItems: 'center',
+    marginHorizontal: 5,
   },
-  toggleButtonText: {
-    color: 'black',
+  circuitButtonText: {
     fontWeight: 'bold',
+    color: 'black',
+  },
+  circuitSelected: {
+    fontSize: 12,
+    color: 'gray',
+  },
+  // Bouton pour le choix de la Période : 25% de la largeur
+  periodButton: {
+    width: '25%',
+    borderWidth: 1,
+    borderColor: '#3A3FD4',
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  periodButtonText: {
+    fontWeight: 'bold',
+    color: 'black',
+  },
+  periodSelected: {
+    fontSize: 12,
+    color: 'gray',
   },
 });

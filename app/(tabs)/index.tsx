@@ -10,8 +10,7 @@ import BD from '../../assets/svg/bas_droit.svg';
 import ResultModal from '../resultat';
 import * as Haptics from 'expo-haptics';
 import {insertHistoriqueEntry} from '../../utils/baseHistorique';
-import {codeEAN,denominationProduit} from '../../utils/columnConfig';
-import {getIntitule,getData,checkForNewData} from '../../utils/database';
+import {getIntitule,getData,checkForNewData,codeEAN,denominationProduit} from '../../utils/database';
 
 export default function Scanner() {
   const [scannedCode, setScannedCode] = useState<string | null>(null);

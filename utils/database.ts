@@ -1,7 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SQLite from 'expo-sqlite';
-import { fetchColumnsByType, periode } from './columnConfig';
 import {API_URL} from './apiUrl';
+
+
+export let codeEAN: string[] = [];
+export let periode: string[] = [];
+export let indicateur: string[] = [];
+export let circuit: string[] = [];
+export let segmentation: string[] = [];
+export let denominationProduit: string[] = [];
+
+export let valeurPeriodes: string[] = [];
+export let valeurcircuit: string[] = [];
+
 
 /*permets d'initialiser une instance de la base de données.
 Appeller la fonction permets de se connecter à une meme instance de la base 
@@ -18,24 +29,24 @@ export const initializeDatabase = async () => {
 //const API_URL = 'http:localhost:5000';
 
 //récupère l'ensemble des codes barres de la table pour les afficher sur la page historique --> à remplacer par l'historique des EAN scannés
-  export const fetchTableData = async () => {
-    const db = await initializeDatabase();
-    try {
-      const result = await db.getAllAsync('SELECT EAN FROM data LIMIT 20;');
-      if (result.length > 0) {
-        // Extraire les valeurs de la clé "EAN"
-        const eanList = result.map(row => row.EAN); // Récupérer uniquement la valeur EAN
-        return eanList; // Retourner un tableau simple avec les EAN
-      } else {
-        console.error('Aucune donnée trouvée dans la colonne EAN.');
-        return [];
-      }
-    } catch (error) {
-      console.error('Erreur lors de la récupération des données EAN :', error);
+export const fetchTableData = async () => {
+  const db = await initializeDatabase();
+  try {
+    const result = await db.getAllAsync('SELECT EAN FROM data LIMIT 20;');
+    if (result.length > 0) {
+      // Extraire les valeurs de la clé "EAN"
+      const eanList = result.map(row => row.EAN); // Récupérer uniquement la valeur EAN
+      return eanList; // Retourner un tableau simple avec les EAN
+    } else {
+      console.error('Aucune donnée trouvée dans la colonne EAN.');
       return [];
     }
-    
-  };
+  } catch (error) {
+    console.error('Erreur lors de la récupération des données EAN :', error);
+    return [];
+  }
+  
+};
 
 export const getData = async () => {
   const db = await initializeDatabase();
@@ -263,7 +274,7 @@ export const handleDownloadData = async (table: string, tableName: string) => {
       console.log(`Page ${page} insérée (${data.length} lignes).`);
       page++;
     } while (data.length === pageSize); // Tant que la page contient le nombre maximum d'enregistrements
-
+    fetchColumnsByType();
     console.log('Téléchargement terminé.');
   } catch (error) {
     console.error('Erreur lors du téléchargement des données :', error);
@@ -550,7 +561,6 @@ export const fetchUniqueValuesBySegmentation = async (
     return [];
   }
 };
-
 /**
  * Récupération des valeurs uniques pour un sous-filtre (2ᵉ niveau)
  */
@@ -573,6 +583,8 @@ export const fetchUniqueValuesForSubFilter = async (
     const db = await initializeDatabase();
     let query = `SELECT DISTINCT ${column} FROM data WHERE ${parentColumn} = ?`;
     const params: any[] = [parentValue];
+
+    console.log("filtre avancé",advancedFilter);
 
     if (
       advancedFilter &&
@@ -605,7 +617,6 @@ export const fetchUniqueValuesForSubFilter = async (
     return [];
   }
 };
-
 /**
  * fetchUniqueValuesForThirdFilter
  */
@@ -663,8 +674,11 @@ export const fetchUniqueValuesForThirdFilter = async (
   }
 };
 
+
+
+
 /**
- * fetchUniqueValuesForReferences
+ * fetchUniqueValuesForReferences (3 filtres actifs)
  */
 export const fetchUniqueValuesForReferences = async (
   denominationColumn: string,
@@ -677,6 +691,8 @@ export const fetchUniqueValuesForReferences = async (
   parentValue3: string,
   circuitColumn: string,
   periodeColumn: string,
+  circuitSelect?: string,
+  periodSelect?: string,
   advancedFilter?: {
     column: string;
     operator: string;
@@ -684,13 +700,39 @@ export const fetchUniqueValuesForReferences = async (
     type: 'integer' | 'text';
     circuit?: string;
     period?: string;
-  } | null
-): Promise<{ intitule: string; codeEAN: string }[]> => {
+  } | null,
+  filtrerVia?: string,
+  sortOrder: 'asc' | 'desc' = 'asc'
+): Promise<{ intitule: string; codeEAN: string; filtrerViaValue?: any }[]> => {
   try {
     const db = await initializeDatabase();
 
+    // On applique le tri de base uniquement si filtrerVia est renseigné (différent de "Aucun filtre")
+    // ET que circuitSelect et periodSelect sont fournis.
+    const applyBasicOrder =
+      filtrerVia && filtrerVia !== "Aucun filtre" &&
+      circuitSelect && periodSelect;
+
+    console.log("État (circuitSelect, periodSelect):", circuitSelect, periodSelect);
+
+    // Construction du SELECT :
+    // Si le tri de base s'applique, on sélectionne directement la valeur de l'indicateur.
+    // Sinon, on utilise MIN() pour garantir l'unicité.
+    let selectClause = "";
+    if (applyBasicOrder) {
+      selectClause = `SELECT ${eanColumn} AS codeEAN, ${denominationColumn} AS intitule`;
+      if (filtrerVia) {
+        selectClause += `, ${filtrerVia} AS filtrerViaValue`;
+      }
+    } else {
+      selectClause = `SELECT ${eanColumn} AS codeEAN, MIN(${denominationColumn}) AS intitule`;
+      if (filtrerVia && filtrerVia !== "Aucun filtre") {
+        selectClause += `, MIN(${filtrerVia}) AS filtrerViaValue`;
+      }
+    }
+
     let query = `
-      SELECT DISTINCT ${denominationColumn} AS intitule, ${eanColumn} AS codeEAN
+      ${selectClause}
       FROM data
       WHERE ${parentColumn1} = ?
         AND ${parentColumn2} = ?
@@ -698,42 +740,81 @@ export const fetchUniqueValuesForReferences = async (
     `;
     const params: any[] = [parentValue1, parentValue2, parentValue3];
 
-    if (
-      advancedFilter &&
-      advancedFilter.column &&
-      advancedFilter.operator &&
-      advancedFilter.value !== ''
-    ) {
+    // Ajout des conditions pour circuit et période via circuitSelect et periodSelect.
+    if (circuitSelect) {
+      query += ` AND ${circuitColumn} = ?`;
+      params.push(circuitSelect);
+    }
+    if (periodSelect) {
+      query += ` AND ${periodeColumn} = ?`;
+      params.push(periodSelect);
+    }
+
+    // Ajout des conditions du filtre avancé pour les autres critères (hors circuit et période)
+    if (advancedFilter && advancedFilter.value !== '' && advancedFilter.column && advancedFilter.operator) {
+      query += ' AND (';
+      const conditions: string[] = [];
       if (advancedFilter.type === 'integer') {
-        query += ` AND CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`;
+        conditions.push(`CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`);
         params.push(parseFloat(advancedFilter.value));
       } else {
-        query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
+        conditions.push(`${advancedFilter.column} ${advancedFilter.operator} ?`);
         params.push(advancedFilter.value);
       }
-
-      if (advancedFilter.circuit) {
+      // Si circuitSelect et periodSelect ne sont pas renseignés, on peut utiliser advancedFilter.circuit/period.
+      if (!circuitSelect && advancedFilter.circuit) {
+        conditions.push(`${circuitColumn} = ?`);
+        params.push(advancedFilter.circuit);
+      }
+      if (!periodSelect && advancedFilter.period) {
+        conditions.push(`${periodeColumn} = ?`);
+        params.push(advancedFilter.period);
+      }
+      query += conditions.join(' AND ');
+      query += ')';
+    } else {
+      // Si advancedFilter est défini mais ne contient pas de valeur, on vérifie si advancedFilter propose circuit/period
+      if (advancedFilter && advancedFilter.circuit && !circuitSelect) {
         query += ` AND ${circuitColumn} = ?`;
         params.push(advancedFilter.circuit);
       }
-      if (advancedFilter.period) {
+      if (advancedFilter && advancedFilter.period && !periodSelect) {
         query += ` AND ${periodeColumn} = ?`;
         params.push(advancedFilter.period);
       }
     }
 
+    // GROUP BY
+    if (applyBasicOrder) {
+      // On considère que la combinaison EAN, denomination et l'indicateur est unique pour ce circuit et cette période.
+      query += ` GROUP BY ${eanColumn}, ${denominationColumn}, ${filtrerVia}`;
+    } else {
+      query += ` GROUP BY ${eanColumn}`;
+    }
+
+    // ORDER BY : uniquement si filtrerVia est renseigné et différent de "Aucun filtre".
+    if (filtrerVia && filtrerVia !== "Aucun filtre") {
+      if (applyBasicOrder) {
+        query += ` ORDER BY CAST(${filtrerVia} AS NUMERIC) ${sortOrder}`;
+      } else {
+        query += ` ORDER BY CAST(MIN(${filtrerVia}) AS NUMERIC) ${sortOrder}`;
+      }
+    }
+
+    console.log('Requête : ', query, ' / Paramètres : ', params);
+
     const results = await db.getAllAsync(query, params);
-    return results
-      .map((row: any) => ({
-        intitule: row.intitule,
-        codeEAN: row.codeEAN,
-      }))
-      .filter(item => item.intitule && item.codeEAN);
+    return results.map((row: any) => ({
+      intitule: row.intitule,
+      codeEAN: row.codeEAN,
+      filtrerViaValue: filtrerVia && filtrerVia !== "Aucun filtre" ? row.filtrerViaValue : undefined,
+    }));
   } catch (error) {
     console.error("Erreur references :", error);
     return [];
   }
 };
+
 
 /**
  * fetchUniqueValuesForReferencesOne (1 filtre actif)
@@ -745,6 +826,8 @@ export const fetchUniqueValuesForReferencesOne = async (
   parentValue: string,
   circuitColumn: string,
   periodeColumn: string,
+  circuitSelect?: string,
+  periodSelect?: string,
   advancedFilter?: {
     column: string;
     operator: string;
@@ -752,57 +835,125 @@ export const fetchUniqueValuesForReferencesOne = async (
     type: 'integer' | 'text';
     circuit?: string;
     period?: string;
-  } | null
-): Promise<{ intitule: string; codeEAN: string }[]> => {
+  } | null,
+  filtrerVia?: string,
+  sortOrder: 'asc' | 'desc' = 'asc'
+): Promise<{ intitule: string; codeEAN: string; filtrerViaValue?: any }[]> => {
   try {
     const db = await initializeDatabase();
 
+    // Détermine si on peut appliquer le tri de base directement :
+    // On considère que le tri de base est applicable si :
+    // 1. filtrerVia est renseigné (et différent de "Aucun filtre")
+    // 2. Les valeurs de circuit et période de la première ligne sont renseignées.
+    // Ici, on suppose que ces informations proviennent de l advancedFilter
+    // uniquement pour le tri de base (elles doivent être renseignées pour le tri).
+    const applyBasicOrder =
+      filtrerVia && filtrerVia !== "Aucun filtre" &&
+      circuitSelect && periodSelect ;
+
+      console.log("Etat : ",periodSelect,circuitSelect);
+
+    // Construction du SELECT
+    // Si le tri de base est applicable, on sélectionne directement la valeur de l'indicateur.
+    // Sinon, on utilise MIN() pour garantir l'unicité.
+    let selectClause = "";
+    if (applyBasicOrder) {
+      selectClause = `SELECT ${eanColumn} AS codeEAN, ${denominationColumn} AS intitule`;
+      if (filtrerVia) {
+        selectClause += `, ${filtrerVia} AS filtrerViaValue`;
+      }
+    } else {
+      selectClause = `SELECT ${eanColumn} AS codeEAN, MIN(${denominationColumn}) AS intitule`;
+      if (filtrerVia && filtrerVia !== "Aucun filtre") {
+        selectClause += `, MIN(${filtrerVia}) AS filtrerViaValue`;
+      }
+    }
+
     let query = `
-      SELECT DISTINCT ${denominationColumn} AS intitule, ${eanColumn} AS codeEAN
+      ${selectClause}
       FROM data
       WHERE ${parentColumn} = ?
     `;
     const params: any[] = [parentValue];
 
-    if (
-      advancedFilter &&
-      advancedFilter.column &&
-      advancedFilter.operator &&
-      advancedFilter.value !== '' &&
-      advancedFilter.type
-    ) {
-      if (advancedFilter.type === 'integer') {
-        query += ` AND CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`;
-        params.push(parseFloat(advancedFilter.value));
-      } else {
-        query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
-        params.push(advancedFilter.value);
-      }
+    if (circuitSelect) {
+      query += `AND ${circuitColumn} = ?`;
+      params.push(circuitSelect);
+    }
+    if (periodSelect) {
+      query += `AND ${periodeColumn} = ?`;
+      params.push(periodSelect);
+    }
 
-      if (advancedFilter.circuit) {
+    // Ajout des conditions du filtre avancé
+    // Ces conditions s'appliquent indépendamment du tri de base.
+    if (advancedFilter && advancedFilter.value !== '') {
+      query += ' AND (';
+      const conditions: string[] = [];
+      if (advancedFilter.column && advancedFilter.operator) {
+        if (advancedFilter.type === 'integer') {
+          conditions.push(`CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`);
+          params.push(parseFloat(advancedFilter.value));
+        } else {
+          conditions.push(`${advancedFilter.column} ${advancedFilter.operator} ?`);
+          params.push(advancedFilter.value);
+        }
+      }
+      // Ces filtres circuit et période ici proviennent du filtre avancé et s'appliquent si renseignés
+      if (circuitSelect) {
+        conditions.push(`${circuitColumn} = ?`);
+        params.push(circuitSelect);
+      }
+      if (periodSelect) {
+        conditions.push(`${periodeColumn} = ?`);
+        params.push(periodSelect);
+      }
+      query += conditions.join(' AND ');
+      query += ')';
+    } else {
+      // S'il n'y a pas de filtre avancé, on peut tout de même appliquer les conditions de circuit et période 
+      // si elles sont présentes dans advancedFilter (pour le tri de base).
+      if (advancedFilter && advancedFilter.circuit) {
         query += ` AND ${circuitColumn} = ?`;
         params.push(advancedFilter.circuit);
       }
-      if (advancedFilter.period) {
+      if (advancedFilter && advancedFilter.period) {
         query += ` AND ${periodeColumn} = ?`;
         params.push(advancedFilter.period);
       }
     }
 
+    // Si on n'applique pas le tri de base, on regroupe uniquement par EAN
+    if (!applyBasicOrder) {
+      query += ` GROUP BY ${eanColumn}`;
+    } else {
+      // Sinon, on considère que EAN, denomination et l'indicateur (filtrerVia) définissent une combinaison unique
+      query += ` GROUP BY ${eanColumn}, ${denominationColumn}, ${filtrerVia}`;
+    }
+
+    // ORDER BY : uniquement si le tri de base est applicable.
+    if (applyBasicOrder && filtrerVia && filtrerVia !== "Aucun filtre") {
+      query += ` ORDER BY CAST(${filtrerVia} AS NUMERIC) ${sortOrder}`;
+    } else if (filtrerVia && filtrerVia !== "Aucun filtre") {
+      query += ` ORDER BY CAST(MIN(${filtrerVia}) AS NUMERIC) ${sortOrder}`;
+    }
+    
+    console.log('Requête : ', query, ' / Paramètres : ', params);
+
     const results = await db.getAllAsync(query, params);
-    return results
-      .map((row: any) => ({
-        intitule: row.intitule,
-        codeEAN: row.codeEAN,
-      }))
-      .filter(item => item.intitule && item.codeEAN);
+    return results.map((row: any) => ({
+      intitule: row.intitule,
+      codeEAN: row.codeEAN,
+      filtrerViaValue: filtrerVia && filtrerVia !== "Aucun filtre" ? row.filtrerViaValue : undefined,
+    }));
   } catch (error) {
     console.error("Erreur referencesOne :", error);
     return [];
   }
 };
 
-/*
+/**
  * fetchUniqueValuesForReferencesTwo (2 filtres actifs)
  */
 export const fetchUniqueValuesForReferencesTwo = async (
@@ -814,6 +965,8 @@ export const fetchUniqueValuesForReferencesTwo = async (
   parentValue2: string,
   circuitColumn: string,
   periodeColumn: string,
+  circuitSelect?: string,
+  periodSelect?: string,
   advancedFilter?: {
     column: string;
     operator: string;
@@ -821,56 +974,126 @@ export const fetchUniqueValuesForReferencesTwo = async (
     type: 'integer' | 'text';
     circuit?: string;
     period?: string;
-  } | null
-): Promise<{ intitule: string; codeEAN: string }[]> => {
+  } | null,
+  filtrerVia?: string,
+  sortOrder: 'asc' | 'desc' = 'asc'
+): Promise<{ intitule: string; codeEAN: string; filtrerViaValue?: any }[]> => {
   try {
     const db = await initializeDatabase();
 
+    // Détermine si on peut appliquer le tri de base directement
+    // C'est le cas si filtrerVia est renseigné (différent de "Aucun filtre")
+    // ET que circuitSelect et periodSelect sont fournis.
+    const applyBasicOrder =
+      filtrerVia && filtrerVia !== "Aucun filtre" &&
+      circuitSelect && periodSelect;
+
+    console.log("État (circuitSelect, periodSelect):", circuitSelect, periodSelect);
+
+    // Construction du SELECT
+    let selectClause = "";
+    if (applyBasicOrder) {
+      // On sélectionne directement la valeur de l'indicateur
+      selectClause = `SELECT ${eanColumn} AS codeEAN, ${denominationColumn} AS intitule`;
+      if (filtrerVia) {
+        selectClause += `, ${filtrerVia} AS filtrerViaValue`;
+      }
+    } else {
+      // Sinon, on utilise MIN() pour garantir l'unicité
+      selectClause = `SELECT ${eanColumn} AS codeEAN, MIN(${denominationColumn}) AS intitule`;
+      if (filtrerVia && filtrerVia !== "Aucun filtre") {
+        selectClause += `, MIN(${filtrerVia}) AS filtrerViaValue`;
+      }
+    }
+
     let query = `
-      SELECT DISTINCT ${denominationColumn} AS intitule, ${eanColumn} AS codeEAN
+      ${selectClause}
       FROM data
       WHERE ${parentColumn1} = ? 
         AND ${parentColumn2} = ?
     `;
     const params: any[] = [parentValue1, parentValue2];
 
-    if (
-      advancedFilter &&
-      advancedFilter.column &&
-      advancedFilter.operator &&
-      advancedFilter.value !== '' &&
-      advancedFilter.type
-    ) {
-      if (advancedFilter.type === 'integer') {
-        query += ` AND CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`;
-        params.push(parseFloat(advancedFilter.value));
-      } else {
-        query += ` AND ${advancedFilter.column} ${advancedFilter.operator} ?`;
-        params.push(advancedFilter.value);
-      }
+    // Ajout des conditions pour circuit et période à partir de circuitSelect et periodSelect
+    if (circuitSelect) {
+      query += ` AND ${circuitColumn} = ?`;
+      params.push(circuitSelect);
+    }
+    if (periodSelect) {
+      query += ` AND ${periodeColumn} = ?`;
+      params.push(periodSelect);
+    }
 
-      if (advancedFilter.circuit) {
-        query += ` AND ${circuitColumn} = ?`;   // adaptez si le nom de col n'est pas 'circuit'
+    // Ajout des conditions du filtre avancé pour d'autres critères (hors circuit et période)
+    if (advancedFilter && advancedFilter.value !== '') {
+      query += ' AND (';
+      const conditions: string[] = [];
+      if (advancedFilter.column && advancedFilter.operator) {
+        if (advancedFilter.type === 'integer') {
+          conditions.push(`CAST(${advancedFilter.column} AS ${advancedFilter.type}) ${advancedFilter.operator} ?`);
+          params.push(parseFloat(advancedFilter.value));
+        } else {
+          conditions.push(`${advancedFilter.column} ${advancedFilter.operator} ?`);
+          params.push(advancedFilter.value);
+        }
+      }
+      // Ces filtres circuit et période ici proviennent du filtre avancé et s'appliquent si renseignés
+      if (circuitSelect) {
+        conditions.push(`${circuitColumn} = ?`);
+        params.push(circuitSelect);
+      }
+      if (periodSelect) {
+        conditions.push(`${periodeColumn} = ?`);
+        params.push(periodSelect);
+      }
+      query += conditions.join(' AND ');
+      query += ')';
+    } else {
+      // S'il n'y a pas de filtre avancé, on peut tout de même appliquer les conditions de circuit et période 
+      // si elles sont présentes dans advancedFilter (pour le tri de base).
+      if (advancedFilter && advancedFilter.circuit) {
+        query += ` AND ${circuitColumn} = ?`;
         params.push(advancedFilter.circuit);
       }
-      if (advancedFilter.period) {
-        query += ` AND ${periodeColumn} = ?`;   // adaptez si le nom de col n'est pas 'periode'
+      if (advancedFilter && advancedFilter.period) {
+        query += ` AND ${periodeColumn} = ?`;
         params.push(advancedFilter.period);
       }
     }
 
+    // GROUP BY
+    if (applyBasicOrder) {
+      // La combinaison (EAN, denomination, filtrerVia) définit une ligne unique pour ce circuit et cette période
+      query += ` GROUP BY ${eanColumn}, ${denominationColumn}, ${filtrerVia}`;
+    } else {
+      query += ` GROUP BY ${eanColumn}`;
+    }
+
+    // ORDER BY : si filtrerVia est renseigné et différent de "Aucun filtre"
+    if (filtrerVia && filtrerVia !== "Aucun filtre") {
+      if (applyBasicOrder) {
+        query += ` ORDER BY CAST(${filtrerVia} AS NUMERIC) ${sortOrder}`;
+      } else {
+        query += ` ORDER BY CAST(MIN(${filtrerVia}) AS NUMERIC) ${sortOrder}`;
+      }
+    }
+
+    console.log('Requête : ', query, ' / Paramètres : ', params);
+
     const results = await db.getAllAsync(query, params);
-    return results
-      .map((row: any) => ({
-        intitule: row.intitule,
-        codeEAN: row.codeEAN,
-      }))
-      .filter(item => item.intitule && item.codeEAN);
+    return results.map((row: any) => ({
+      intitule: row.intitule,
+      codeEAN: row.codeEAN,
+      filtrerViaValue: filtrerVia && filtrerVia !== "Aucun filtre" ? row.filtrerViaValue : undefined,
+    }));
   } catch (error) {
     console.error("Erreur referencesTwo :", error);
     return [];
   }
 };
+
+
+
 
 //récupère l'intitulé d'une référence selon son gencode
 export const getIntitule = async (
@@ -896,3 +1119,47 @@ export const getIntitule = async (
     return [];
   }
 };
+
+
+export const fetchColumnsByType = async (): Promise<void> => {
+  try {
+    const db = await initializeDatabase();
+
+    // Exécuter une requête pour récupérer les données de la table
+    const result = await db.getAllAsync('SELECT colonne, valeur FROM segments;');
+
+    // Organiser les colonnes par "valeur"
+    const groupedColumns: { [key: string]: string[] } = {};
+
+    result.forEach((row: { colonne: string; valeur: string }) => {
+      const { colonne, valeur } = row;
+      if (!groupedColumns[valeur]) {
+        groupedColumns[valeur] = [];
+      }
+      groupedColumns[valeur].push(colonne);
+    });
+
+    // Assigner les colonnes aux variables globales
+    denominationProduit = groupedColumns['Dénomination produit'] || [];
+    codeEAN = groupedColumns['code EAN'] || [];
+    periode = groupedColumns['Période'] || [];
+    indicateur = groupedColumns['Indicateur'] || [];
+    circuit = groupedColumns['Circuit'] || [];
+    segmentation = ['Aucun filtre', ...(groupedColumns['Segmentation'] || [])];
+
+    // Charger les valeurs uniques pour "Période" et "Circuit"
+    if (periode[0]) {
+      valeurPeriodes = await fetchUniqueValues(periode[0]);
+    }
+    if (circuit[0]) {
+      valeurcircuit = await fetchUniqueValues(circuit[0]);
+    }
+  } catch (error) {
+    console.error('Erreur lors de la récupération des colonnes :', error);
+  }
+};
+
+// Appeler la fonction immédiatement pour initialiser les variables au chargement du fichier
+fetchColumnsByType().then(() => {
+  // Les variables sont initialisées ici
+});

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,Modal, TextInput, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { codeEAN, circuit, periode, indicateur, valeurPeriodes, valeurcircuit,segmentation,denominationProduit } from '../utils/columnConfig';
-import { fetchDataByDynamicColumns,fetchReferences, fetchFilteredColumnValue,fetchReferencesWithIndicators } from '../utils/database';
+import { fetchDataByDynamicColumns,fetchReferences, fetchFilteredColumnValue,fetchReferencesWithIndicators,codeEAN, circuit, periode, indicateur, valeurPeriodes, valeurcircuit,segmentation,denominationProduit } from '../utils/database';
 import { FontAwesome } from '@expo/vector-icons';
 
 interface ModalPageProps {
