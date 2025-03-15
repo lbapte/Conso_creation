@@ -17,8 +17,10 @@ import {
   loadingData  // Cette fonction doit pouvoir utiliser un callback pour la progression
 } from '../utils/database';
 import LogoBlanc from '../assets/svg/LogoBlanc.svg';
+import io from 'socket.io-client';
 
 export default function SettingsScreen({ onClose }) {
+  // États pour l'authentification
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [jwt, setJwt] = useState('');
@@ -27,17 +29,20 @@ export default function SettingsScreen({ onClose }) {
   const [usernameFocused, setUsernameFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
-  // États pour le chargement et la progression
+  // États pour le téléchargement/insertion des données
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0); // en pourcentage
   const [currentPage, setCurrentPage] = useState(0);
-  // Pour indiquer la phase en cours : 'download' ou 'insertion'
-  const [phase, setPhase] = useState('download');
+  const [phase, setPhase] = useState('download'); // 'download' ou 'insertion'
 
-  // Calcul de la largeur totale de la barre de progression (80% de la largeur de l'écran)
+  // État pour la notification (nouvelles données)
+  const [hasNewData, setHasNewData] = useState(false);
+
+  // Calcul de la largeur de la barre de progression (80% de la largeur de l'écran)
   const screenWidth = Dimensions.get('window').width;
   const progressBarTotalWidth = screenWidth * 0.8;
 
+  // Vérifier le statut de connexion au montage du composant
   useEffect(() => {
     const checkLoginStatus = async () => {
       const token = await AsyncStorage.getItem('jwt');
@@ -51,6 +56,28 @@ export default function SettingsScreen({ onClose }) {
     checkLoginStatus();
   }, []);
 
+  // Établir la connexion Socket.IO dès que l'utilisateur est connecté
+  /*useEffect(() => {
+    if (isLoggedIn && companyName) {
+      const socket = io(API_URL, { transports: ['websocket'] });
+      socket.on('connect', () => {
+        console.log('Connecté au serveur Socket.IO');
+        socket.emit('join_company', { company: companyName });
+        console.log('Rejoint la room pour :', companyName);
+      });
+      socket.on('new_data', (data) => {
+        console.log('Notification reçue : ', data);
+        if (data.company === companyName && data.submission_date) {
+          setHasNewData(true);
+          // Mettre à jour la valeur globale dans AsyncStorage
+          AsyncStorage.setItem('newData', 'true');
+        }
+      });
+      return () => socket.disconnect();
+    }
+  }, [isLoggedIn, companyName]);*/
+
+  // Gestion de la connexion
   const handleLogin = async () => {
     try {
       const response = await fetch(`${API_URL}/auth/login`, {
@@ -81,14 +108,14 @@ export default function SettingsScreen({ onClose }) {
     alert('Déconnexion réussie');
   };
 
-  // Fonction qui gère le téléchargement et l'insertion en deux phases
+  // Fonction qui gère le téléchargement (phase 1) et l'insertion (phase 2)
   const handleLoadData = async () => {
     setIsLoading(true);
     setProgress(0);
     setCurrentPage(0);
     setPhase('download');
     try {
-      // ----- PHASE 1 : Téléchargement des données -----
+      // PHASE 1 : Téléchargement des données
       const totalRows = await getRemoteTotalRowCount('TD_oui'); // adapter le nom de la table distante
       const pageSize = 1000;
       let pageNumber = 1;
@@ -100,8 +127,6 @@ export default function SettingsScreen({ onClose }) {
 
       do {
         setCurrentPage(pageNumber);
-        // Ici, fetchDataPage télécharge ET insère la page dans la BDD,
-        // mais on met à jour la progression basée sur le nombre de lignes récupérées
         data = await fetchDataPage('TD_oui', 'data', pageSize, pageNumber);
         loadedRows += data.length;
         let calcProgress = (loadedRows / totalRows) * 100;
@@ -112,19 +137,18 @@ export default function SettingsScreen({ onClose }) {
 
       alert('Téléchargement terminé');
       
-      // ----- PHASE 2 : Insertion des données dans SQLite -----
-      // On réinitialise la barre de progression pour la phase d'insertion.
-      setProgress(0);
-      setPhase('insertion');
+      // Après téléchargement, on considère que les données ont été récupérées, on réinitialise le flag
+      setHasNewData(false);
+      await AsyncStorage.setItem('newData', 'false');
 
-      // On suppose ici que loadingData est une fonction qui gère l'insertion
-      // et qui accepte un callback pour mettre à jour la progression.
-      await loadingData((insertionProgress) => {
-        // insertionProgress est ici une valeur entre 0 et 100.
-        setProgress(insertionProgress);
-      });
-
-      alert('Insertion des données réussie');
+      // Optionnel : Vous pouvez ajouter ici la phase d'insertion si nécessaire (phase 'insertion')
+      // Par exemple, si loadingData gère une insertion supplémentaire :
+      // setProgress(0);
+      // setPhase('insertion');
+      // await loadingData((insertionProgress) => {
+      //   setProgress(insertionProgress);
+      // });
+      // alert('Insertion des données réussie');
     } catch (error) {
       console.error('Erreur lors du chargement des données :', error);
       alert('Erreur lors du chargement des données');
@@ -147,6 +171,12 @@ export default function SettingsScreen({ onClose }) {
         {isLoggedIn ? (
           <View style={styles.loggedInContainer}>
             <Text style={styles.welcomeText}>Nom retourné : {companyName}</Text>
+            {/* Affichage de la notification : nouvelle donnée détectée */}
+            {hasNewData ? (
+              <Text style={styles.notificationText}>Nouvelles données à dispo</Text>
+            ) : (
+              <Text style={styles.notificationText}>Aucune nouvelle donnée reçue.</Text>
+            )}
             <Text style={styles.subtitle}>Nouvelles données disponibles :</Text>
             <TouchableOpacity
               style={styles.mainButton}
@@ -227,7 +257,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    // On le centre
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -242,6 +271,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center' },
   loggedInContainer: { alignItems: 'center' },
   welcomeText: { color: '#FFFFFF', fontSize: 20, marginBottom: 10 },
+  notificationText: { color: '#FFFFFF', fontSize: 16, marginBottom: 10 },
   subtitle: { color: '#FFFFFF', fontSize: 16, marginBottom: 20 },
   mainButton: {
     backgroundColor: '#98FFBF',
@@ -264,24 +294,14 @@ const styles = StyleSheet.create({
     width: '80%',
   },
   input: { color: '#FFFFFF', fontSize: 16 },
-  loadingContainer: {
-    alignItems: 'center',
-    marginVertical: 10,
-  },
-  loadingText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    marginBottom: 10,
-  },
+  loadingContainer: { alignItems: 'center', marginVertical: 10 },
+  loadingText: { color: '#FFFFFF', fontSize: 16, marginBottom: 10 },
   progressBar: {
     height: 7,
     backgroundColor: 'white',
     borderRadius: 10,
     overflow: 'hidden',
   },
-  progress: {
-    height: '100%',
-    backgroundColor: '#98FFBF',
-  },
+  progress: { height: '100%', backgroundColor: '#98FFBF' },
   pageText: { color: '#FFFFFF', marginTop: 5 },
 });

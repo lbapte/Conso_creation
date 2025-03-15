@@ -1,73 +1,126 @@
-import { Tabs } from 'expo-router';
+import { Tabs, usePathname } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity, Modal, AppState, AppStateStatus } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { SafeAreaView, View, StyleSheet, TouchableOpacity, Modal, AppState, AppStateStatus,Text } from 'react-native';
+import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import SettingsScreen from '../settings'; 
-import Logo from '../../assets/svg/Logo.svg'; 
+import SettingsScreen from '../settings';
+import Logo from '../../assets/svg/Logo.svg';
 import Recherche from '../../assets/svg/Recherche.svg';
 import Historique from '../../assets/svg/Historique.svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from '@react-navigation/native';
+import io from 'socket.io-client';
+import { API_URL } from '../../utils/apiUrl';
+
+import explore from './explore';
+import historique from './historique';
+import index from './index';
+
+const Tab = createBottomTabNavigator();
 
 export default function TabLayout() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
-  const appStateRef = useRef(appState);
-  appStateRef.current = appState;
-
   const [hasNewData, setHasNewData] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [companyName, setCompanyName] = useState('');
+  const pathname = usePathname();
 
-  const checkNewData = async () => {
-    try {
-      const newDataValue = await AsyncStorage.getItem('newData');
-      setHasNewData(newDataValue === 'true');
-    } catch (error) {
-      console.error('Erreur lors de la récupération de newData :', error);
-    }
-  };
-
+  // Vérifier le statut de connexion et récupérer le nom d'entreprise depuis AsyncStorage
   useEffect(() => {
+    const checkLoginStatus = async () => {
+      const token = await AsyncStorage.getItem('jwt');
+      const storedCompanyName = await AsyncStorage.getItem('entreprise');
+      if (token && storedCompanyName) {
+        setCompanyName(storedCompanyName);
+        setIsLoggedIn(true);
+      }
+    };
+    checkLoginStatus();
+  }, []);
+
+  // Connexion Socket.IO globale
+  useEffect(() => {
+    if (isLoggedIn && companyName) {
+      const socket = io(API_URL, { transports: ['websocket'] });
+      socket.on('connect', () => {
+        console.log('Connecté au serveur Socket.IO');
+        socket.emit('join_company', { company: companyName });
+        console.log('Rejoint la room pour :', companyName);
+      });
+      socket.on('new_data', (data) => {
+        console.log('Notification reçue :', data);
+        if (data.company === companyName && data.submission_date) {
+          setHasNewData(true);
+          AsyncStorage.setItem('newData', 'true');
+        }
+      });
+      return () => socket.disconnect();
+    }
+  }, [isLoggedIn, companyName]);
+
+  // Mise à jour du flag newData via AppState et polling (fallback)
+  useEffect(() => {
+    const checkNewData = async () => {
+      try {
+        const newDataValue = await AsyncStorage.getItem('newData');
+        setHasNewData(newDataValue === 'true');
+      } catch (error) {
+        console.error('Erreur lors de la récupération de newData :', error);
+      }
+    };
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+      if (nextAppState === 'active') {
         checkNewData();
       }
-      setAppState(nextAppState);
-      checkNewData();
     };
-
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    // On check au montage
+    // Vérification initiale
     checkNewData();
-
+    const interval = setInterval(() => {
+      checkNewData();
+    }, 2000);
     return () => {
       subscription.remove();
+      clearInterval(interval);
     };
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      checkNewData();
-    }, [])
-  );
+  // Afficher le bouton réglages uniquement sur la page d'accueil (index)
+  const showSettingsIcon = pathname === '/index' || pathname === '/';
 
   return (
-    <LinearGradient colors={['#3A3FD4', '#7377FD']} style={styles.gradientContainer}>
-      <View style={{ flex: 1 }}>
+   
+      <View style={styles.contentContainer}>
+     
         <Tabs
           screenOptions={{
-            // Inversion des couleurs
-            tabBarActiveTintColor: '#98FFBF',     // icône blanche quand l'onglet est actif
-            tabBarInactiveTintColor: '#FFF', // icône vert clair quand il est inactif
+            tabBarActiveTintColor: '#98FFBF',
+            tabBarInactiveTintColor: '#FFF',
             tabBarStyle: {
-              display: 'flex',
-              height: '10%',
-              marginTop: 15,
+              position:'absolute',
+              marginLeft:'12.5%',
+              bottom:'25',
+              alignSelf:'center',
+              height: '60',
+              width:'75%',
+              marginBottom: 0,
               borderTopWidth: 0,
-              backgroundColor: 'transparent',
+              backgroundColor: 'rgba(16,23,255,0.5)',
+              borderRadius:1000,
+              overflow: 'hidden',
+            },
+            tabBarBackground: () => (
+              <BlurView tint="light" intensity={50} style={StyleSheet.absoluteFill} />
+            ),
+           
+            tabBarLabelStyle: {
+              marginTop: 5,
+              padding: 0,
+              display:'none',
             },
             headerShown: false,
+            
           }}
         >
           <Tabs.Screen
@@ -76,7 +129,7 @@ export default function TabLayout() {
               title: 'Recherche',
               tabBarIcon: ({ color }) => (
                 <View style={styles.indicator}>
-                  <Recherche width={30} height={30} fill={color} style={{ color }} />
+                  <Recherche width={30} height={30} fill={color} style={{ color }}/>
                 </View>
               ),
             }}
@@ -84,10 +137,10 @@ export default function TabLayout() {
           <Tabs.Screen
             name="index"
             options={{
-              title: 'Scan',
+            title: 'Scan',
               tabBarIcon: ({ color }) => (
                 <View style={styles.indicator}>
-                  <Logo width={35} height={35} fill={color} style={{ color }} />
+                  <Logo width={35} height={35} fill={color} style={{ color }}/>
                 </View>
               ),
             }}
@@ -98,32 +151,57 @@ export default function TabLayout() {
               title: 'Historique',
               tabBarIcon: ({ color }) => (
                 <View style={styles.indicator}>
-                  <Historique width={30} height={30} fill={color} style={{ color }} />
+                  <Historique width={30} height={30} fill={color} style={{ color }}/>
                 </View>
               ),
             }}
           />
         </Tabs>
 
-        {/* Bouton Paramètres */}
-        <TouchableOpacity onPress={() => setIsSettingsOpen(true)} style={styles.settingsButton}>
-          <Ionicons name="settings-outline" size={30} color={hasNewData ? 'red' : '#7377FD'} />
-        </TouchableOpacity>
+        {showSettingsIcon && (
+          <>
+            {/* Bouton Paramètres */}
+            <TouchableOpacity onPress={() => setIsSettingsOpen(true)} style={styles.settingsButton}>
+              <Ionicons
+                name={hasNewData ? 'settings' : 'settings-outline'}
+                size={30}
+                color={hasNewData ? '#98FFBF' : '#7377FD'}
+              />
+            </TouchableOpacity>
 
-        {/* Modale pour Paramètres */}
-        <Modal visible={isSettingsOpen} animationType="slide" transparent>
-          <SettingsScreen onClose={() => setIsSettingsOpen(false)} />
-        </Modal>
+            {/* Modale pour afficher les réglages */}
+            <Modal visible={isSettingsOpen} animationType="slide" transparent>
+              <SettingsScreen onClose={() => setIsSettingsOpen(false)} />
+            </Modal>
+          </>
+        )}
       </View>
-    </LinearGradient>
+   
   );
 }
- 
+
 const styles = StyleSheet.create({
-  gradientContainer: {
+  
+  contentContainer: {
     flex: 1,
-    height: 100,
+    backgroundColor: 'transparent',
+
   },
+  absoluteFill:{
+    borderRadius:30,
+  },
+  footerSafeArea: {
+    // La SafeAreaView ici s'assure uniquement du padding en bas, sans étendre le fond au-dessus
+    backgroundColor: 'transparent',
+    width:0,
+  },
+  indicator: {
+    top : 10,
+    justifyContent:'center',
+    alignItems:'center',
+    
+  },
+  
   settingsButton: {
     position: 'absolute',
     top: 50,
@@ -132,8 +210,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 50,
   },
-  indicator: {
-    width: 35,
-    height: 50,
-  },
+ 
+  
 });
+

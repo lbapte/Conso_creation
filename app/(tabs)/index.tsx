@@ -1,18 +1,22 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Modal, Animated, Easing } from 'react-native';
-import { CameraView, BarcodeScanningResult } from 'expo-camera';
+import { View, Text, StyleSheet, Modal, Animated, Easing,Button,TouchableOpacity, } from 'react-native';
+import { CameraView, BarcodeScanningResult, CameraType, useCameraPermissions } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import Svg from 'react-native-svg';
 import HD from '../../assets/svg/haut_droit.svg';
 import HG from '../../assets/svg/haut-gauche.svg';
 import BG from '../../assets/svg/bas_gauche.svg';
 import BD from '../../assets/svg/bas_droit.svg';
 import ResultModal from '../resultat';
+
 import * as Haptics from 'expo-haptics';
 import {insertHistoriqueEntry} from '../../utils/baseHistorique';
 import {getIntitule,getData,checkForNewData,codeEAN,denominationProduit} from '../../utils/database';
 
 export default function Scanner() {
+  const [facing, setFacing] = useState<CameraType>('back');
+  const [permission, requestPermission] = useCameraPermissions();
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   // "progress" incrémente toutes les 100ms et va de 0 à THRESHOLD (7 = 0,7 s)
@@ -30,8 +34,12 @@ export default function Scanner() {
   // Pour s'assurer que la vibration du milieu ne se déclenche qu'une seule fois
   const midHapticTriggeredRef = useRef(false);
 
-
   const THRESHOLD = 7; // 7 x 100ms = 0,7 s
+
+
+  function toggleCameraFacing() {
+    setFacing(current => (current === 'back' ? 'front' : 'back'));
+  }
 
   useEffect(() => {
     return () => {
@@ -134,11 +142,28 @@ export default function Scanner() {
     midHapticTriggeredRef.current = false;
   };
 
+  if (!permission) {
+    // Camera permissions are still loading.
+    return <View />;
+  }
+
+  if (!permission.granted) {
+    // Camera permissions are not granted yet.
+    return (
+      <View style={styles.container}>
+        <Text style={styles.message}>We need your permission to show the camera</Text>
+        <Button onPress={requestPermission} title="grant permission" />
+      </View>
+    );
+  }
+
   return (
+    
     <SafeAreaView style={styles.container}>
+      
       <CameraView
         style={StyleSheet.absoluteFillObject}
-        onBarcodeScanned={modalVisible ? undefined : handleBarCodeScanned}
+        onBarcodeScanned={modalVisible ? undefined : handleBarCodeScanned} facing={facing}
       />
 
       {/* Indicateurs (crochets) affichés aux positions par défaut
@@ -248,11 +273,13 @@ export default function Scanner() {
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor:'transparent',
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   containerTwo: {
+    backgroundColor:'transparent',
     position: 'absolute',
     justifyContent: 'space-between',
     flexDirection: 'row',
@@ -291,5 +318,9 @@ const styles = StyleSheet.create({
     bottom: '20%',
     width: 40,
     height: 40,
+  },
+  message: {
+    textAlign: 'center',
+    paddingBottom: 10,
   },
 });

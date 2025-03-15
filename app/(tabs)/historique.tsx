@@ -123,13 +123,13 @@ const Historique = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#E9E9E9' },
+  container: { flex: 1, padding: 16, backgroundColor: '#7579FF',marginBottom:-40, },
   Header: { justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
   filterContainer: { alignItems: 'center', marginBottom: 10 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#010A26' },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
   filterButton: { backgroundColor: '#3A3FD4', padding: 10, borderRadius: 5 },
   filterButtonText: { color: 'white', fontWeight: 'bold' },
-  Body: { flex: 8, backgroundColor: '#fff' },
+  Body: { flex: 8, backgroundColor: '#fff',borderRadius:20, },
   itemContainer: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#ccc' },
   itemTitle: { fontSize: mainPoliceSize, fontWeight: 'bold' },
   itemDate: { fontSize: 12, color: '#666', marginTop: 4 },

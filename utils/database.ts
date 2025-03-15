@@ -97,50 +97,7 @@ export const getData = async () => {
 // // // //  
 
 export const checkForNewData = async () => {
-  try {
-    // Récupérer le JWT et le nom de l'entreprise depuis AsyncStorage
-    const jwt = await AsyncStorage.getItem('jwt');
-    const company = await AsyncStorage.getItem('entreprise');
-    
-    // Construire l'URL de l'API en fonction du nom de l'entreprise
-    const apiUrl = `${API_URL}/data_receiver/get_data/LastSubmition_${company}`;
-    
-    // Appeler l'API pour récupérer la dernière date de soumission
-    const response = await fetch(`${apiUrl}?page=1&page_size=1`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-      },
-    });
-    
-    const json = await response.json();
-    
-    // Extraction de la date depuis la réponse (qui est un tableau)
-    let apiSubmissionDate = null;
-    if (Array.isArray(json) && json.length > 0 && json[0].submission_date) {
-      apiSubmissionDate = json[0].submission_date;
-    } else if (json.submission_date) {
-      apiSubmissionDate = json.submission_date;
-    } else {
-      console.error("Submission date introuvable dans la réponse API :", json);
-      return;
-    }
-    
-    // Récupérer la date stockée dans AsyncStorage
-    const storedSubmissionDate = await AsyncStorage.getItem('submission_date');
-    
-    // Comparer les dates
-    if (storedSubmissionDate !== apiSubmissionDate) {
-      // Si les dates diffèrent, on considère qu'il y a de nouvelles données
-      await AsyncStorage.setItem('newData', 'true');
-      console.log("Nouvelle donnée détectée : newData mis à true.");
-    } else {
-      await AsyncStorage.setItem('newData', 'false');
-      console.log("Aucune nouvelle donnée : newData mis à false.");
-    }
-  } catch (error) {
-    console.error("Erreur lors de la vérification des nouvelles données :", error);
-  }
+  // la fonction doit etre supprimée une fois que toutes les connexions sont effacées sur les autres pages
 };
 
 
