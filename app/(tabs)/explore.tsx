@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BlurView } from 'expo-blur';
 import { FontAwesome } from '@expo/vector-icons';
 import {
   View,
@@ -150,7 +151,9 @@ const SegmentationPage = () => {
 
   useEffect(() => {
     fetchColumnsByType();
-  }, []);
+  }, []); 
+
+  console.log(indicateur);
 
   useEffect(() => {
     createHistoriqueTable();
@@ -166,6 +169,8 @@ const SegmentationPage = () => {
     };
     fetchOptions();
   }, []);
+
+
 
   useEffect(() => {
     setActiveFilterCount(selectedFilters.filter(f => f !== 'Aucun filtre').length);
@@ -466,26 +471,15 @@ const SegmentationPage = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <SafeAreaView style={styles.container}>
+        <View style={styles.fullPage}>
+        <SafeAreaView style={styles.containerTransp}>
 
-          {/* Filtres classiques */}
-          <ScrollView horizontal style={styles.filterContainer}>
-            {selectedFilters.map((filter, index) => (
-              <TouchableOpacity
-                key={`filter-${index}`}
-                style={[
-                  styles.filterButton,
-                  filter === 'Aucun filtre' ? styles.inactiveFilter : styles.activeFilter,
-                ]}
-                onPress={() => {
-                  setCurrentFilterIndex(index);
-                  setModalVisible(true);
-                }}
-              >
-                <Text style={styles.filterText}>{filter}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View style={styles.topHeader}>
+            <Text style={styles.title}>Rechercher</Text>
+              <View style={styles.filterAdvancedActionsContainer}>
+                
+            </View>
+          </View>
 
           {/* Boutons pour les actions du filtre */}
           <View style={styles.filterActionsContainer}>
@@ -498,12 +492,12 @@ const SegmentationPage = () => {
                 <FontAwesome
                   name="arrow-up"
                   size={14}
-                  color={sortOrder === 'asc' ? "#2B26BF" : "gray"}
+                  color={sortOrder === 'asc' ? "#98FFBF" : "#f5f5f5"}
                 />
                 <FontAwesome
                   name="arrow-down"
                   size={14}
-                  color={sortOrder === 'desc' ? "#2B26BF" : "gray"}
+                  color={sortOrder === 'desc' ? "#98FFBF" : "#f5f5f5"}
                 />
               </View>
             </TouchableOpacity>
@@ -545,16 +539,14 @@ const SegmentationPage = () => {
             
           </View>
 
-          <View style={styles.filterActionsContainer}>
           <TouchableOpacity
-              style={styles.advancedToggleButton}
-              onPress={() => setShowAdvancedFilter(prev => !prev)}
-            >
-              <Text style={styles.advancedToggleText}>
-                {showAdvancedFilter ? 'Masquer le filtre avancé' : 'Afficher le filtre avancé'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+                  style={styles.advancedToggleButton}
+                  onPress={() => setShowAdvancedFilter(prev => !prev)}
+                >
+                <Text style={styles.advancedToggleText}>
+                  {showAdvancedFilter ? 'Masquer le filtre avancé' : 'Afficher le filtre avancé'}
+                </Text>
+              </TouchableOpacity>
 
           {/* SECTION AVANCÉE : affichage conditionnel */}
           {showAdvancedFilter && (
@@ -809,6 +801,29 @@ const SegmentationPage = () => {
             </View>
           )}
 
+          {/* Filtres et décallage avec la liste */}
+          <View style={styles.hautListe}></View>
+
+             {/* Filtres classiques */}
+             <ScrollView horizontal style={styles.filterContainer}>
+            {selectedFilters.map((filter, index) => (
+              <TouchableOpacity
+                key={`filter-${index}`}
+                style={[
+                  styles.filterButton,
+                  filter === 'Aucun filtre' ? styles.inactiveFilter : styles.activeFilter,
+                ]}
+                onPress={() => {
+                  setCurrentFilterIndex(index);
+                  setModalVisible(true);
+                }}
+              >
+                <Text style={styles.filterText}>{filter}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <View style={styles.liste}></View>
           {/* LISTE DES RÉSULTATS (selon F1, F2, F3 + advancedFilter) */}
           {activeFilterCount === 1 && (
             <FlatList
@@ -1129,6 +1144,7 @@ const SegmentationPage = () => {
             animationType="slide"
             onRequestClose={() => setFiltrerViaModalVisible(false)}
           >
+            <BlurView tint="dark" intensity={50} style={StyleSheet.absoluteFill} />
             <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Filtrer via</Text>
@@ -1249,6 +1265,7 @@ const SegmentationPage = () => {
             {selectedEan && <ModalPage barcode={selectedEan} onClose={closeRefModal} />}
           </Modal>
         </SafeAreaView>
+        </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
@@ -1260,15 +1277,24 @@ const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    padding: 10,
+    //padding: 10,
     backgroundColor: '#F5F5F5',
+    paddingBottom: -50,
+  },
+  containerTransp: {
+    flex: 1,
+    //padding: 10,
+    backgroundColor: 'transparent',
     paddingBottom: -50,
   },
   filterContainer: {
     marginBottom: 5,
+    marginTop:-5,
     paddingVertical: 5,
     maxHeight: 50,
     minHeight: 50,
+    backgroundColor:'#f5f5f5',
+    paddingLeft:15,
   },
   filterButton: {
     padding: 10,
@@ -1298,6 +1324,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent:'center',
   },
+
+  filterAdvancedActionsContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    marginBottom: 10,
+  },
  
   arrowButton: {
     // You can adjust the width as needed; for example:
@@ -1315,7 +1347,7 @@ const styles = StyleSheet.create({
   filterViaButton: {
     width: '25%',
     borderWidth: 1,
-    borderColor: '#3A3FD4',
+    borderColor: '#98FFBF',
     borderRadius: 8,
     padding: 10,
     alignItems: 'center',
@@ -1323,26 +1355,30 @@ const styles = StyleSheet.create({
   },
   filterViaText: {
     fontWeight: 'bold',
-    color: 'black',
+    color: 'white',
   },
   filterViaSelected: {
     fontSize: 12,
-    color: 'gray',
+    color: '#E1E1E1',
   },
   // Bouton pour le filtre avancé : 70% de la largeur
   advancedToggleButton: {
-    width: '70%',
+
     padding: 10,
-    backgroundColor: 'transparent',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#3A3FD4',
-    alignItems: 'center',
+    paddingHorizontal:20,
+    backgroundColor: '#2C31C7',
+    borderRadius: 30,
+    borderWidth: 0,
+    borderColor: '#98FFBF',
     marginHorizontal: 5,
+    marginLeft:20,
+    alignSelf:'center',
+    marginBottom:15,
+    color:'white',
   },
   advancedToggleText: {
     fontWeight: 'bold',
-    color: 'black',
+    color: 'white',
   },
   // --- Section avancée ---
   advancedFilterContainer: {
@@ -1350,6 +1386,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     marginBottom: 10,
+    zIndex:2,
+
   },
   advancedFilterTitle: {
     fontSize: 16,
@@ -1480,13 +1518,14 @@ const styles = StyleSheet.create({
   // --- Liste hiérarchique ---
   listItem: {
     flexDirection: 'row',
-    padding: 10,
+    padding: 8,
+    paddingHorizontal:20,
     margin: 5,
   },
   subListItem: {
     flexDirection: 'row',
     padding: 10,
-    paddingLeft: 20,
+    paddingLeft: 28,
     marginLeft: 20,
     borderRadius: 0,
     margin: 5,
@@ -1494,7 +1533,7 @@ const styles = StyleSheet.create({
   thirdListItem: {
     flexDirection: 'row',
     padding: 10,
-    paddingLeft: 40,
+    paddingLeft: 48,
     borderRadius: 0,
     marginLeft: 40,
     margin: 5,
@@ -1503,8 +1542,13 @@ const styles = StyleSheet.create({
     padding: 6,
     marginTop: 5,
     borderRadius: 4,
+    paddingHorizontal:30,
   },
-  TextList: {},
+  TextList: {
+    fontSize:16,
+    color:'#0C0F40',
+    fontWeight:'medium',
+  },
   chevronContainer: {
     width: 15,
     alignItems: 'center',
@@ -1520,7 +1564,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 2, 52, 0.1)',
   },
   modalContent: {
     width: '80%',
@@ -1562,7 +1606,7 @@ const styles = StyleSheet.create({
   circuitButton: {
     width: '25%',
     borderWidth: 1,
-    borderColor: '#3A3FD4',
+    borderColor: '#98FFBF',
     borderRadius: 8,
     padding: 10,
     alignItems: 'center',
@@ -1570,17 +1614,17 @@ const styles = StyleSheet.create({
   },
   circuitButtonText: {
     fontWeight: 'bold',
-    color: 'black',
+    color: 'white',
   },
   circuitSelected: {
     fontSize: 12,
-    color: 'gray',
+    color: '#E1E1E1',
   },
   // Bouton pour le choix de la Période : 25% de la largeur
   periodButton: {
     width: '25%',
     borderWidth: 1,
-    borderColor: '#3A3FD4',
+    borderColor: '#98FFBF',
     borderRadius: 8,
     padding: 10,
     alignItems: 'center',
@@ -1588,11 +1632,11 @@ const styles = StyleSheet.create({
   },
   periodButtonText: {
     fontWeight: 'bold',
-    color: 'black',
+    color: 'white',
   },
   periodSelected: {
     fontSize: 12,
-    color: 'gray',
+    color: '#E1E1E1',
   },
 
 
@@ -1608,7 +1652,46 @@ const styles = StyleSheet.create({
     flex: 1,
     // Ajoutez d'autres styles si nécessaire (ex: fontSize, color, etc.)
   },
-  
-  
+  fullPage: {
+    flex: 1,
+    backgroundColor: '#4750D1',
+    // Ajoutez d'autres styles si nécessaire (ex: fontSize, color, etc.)
+  },
+  liste: {
+    position:'absolute',
+    top:'30%',
+    left:0,
+    width:'100%',
+    height:1200,
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    marginBottom:0,
+    zIndex:-2,
 
+    // Ajoutez d'autres styles si nécessaire (ex: fontSize, color, etc.)
+  },
+  hautListe: {
+    borderTopLeftRadius:50,
+    borderTopRightRadius:50,
+    width:'100%', 
+    height:20,
+    backgroundColor: '#f5f5f5',
+    marginBottom:0,
+
+    // Ajoutez d'autres styles si nécessaire (ex: fontSize, color, etc.)
+  },
+  topHeader:{
+    display:'flex',
+    flexDirection:'row',
+    justifyContent:'start',
+    alignItems:'center',
+    paddingVertical:10,
+  },
+  title:{
+    fontSize: 24, 
+    fontWeight: 'bold', 
+    color: '#fff',
+    marginLeft:20,
+  },
+  
 });

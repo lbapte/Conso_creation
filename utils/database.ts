@@ -13,7 +13,6 @@ export let denominationProduit: string[] = [];
 export let valeurPeriodes: string[] = [];
 export let valeurcircuit: string[] = [];
 
-
 /*permets d'initialiser une instance de la base de données.
 Appeller la fonction permets de se connecter à une meme instance de la base 
 Si ce n'était pas le cas, les données seraient effacées d'une connexion à l'autre.*/
@@ -231,11 +230,11 @@ export const handleDownloadData = async (table: string, tableName: string) => {
       console.log(`Page ${page} insérée (${data.length} lignes).`);
       page++;
     } while (data.length === pageSize); // Tant que la page contient le nombre maximum d'enregistrements
-    fetchColumnsByType();
     console.log('Téléchargement terminé.');
   } catch (error) {
     console.error('Erreur lors du téléchargement des données :', error);
   }
+  fetchColumnsByType();
 };
 
 export const loadingData = async () => {
@@ -243,7 +242,6 @@ export const loadingData = async () => {
   handleDownloadData("TD_oui","data");
   handleDownloadData("Colonnes","segments");
   getData();
-  //fetchColumnsByType();
 
 };
 
@@ -1099,6 +1097,8 @@ export const fetchColumnsByType = async (): Promise<void> => {
     circuit = groupedColumns['Circuit'] || [];
     segmentation = ['Aucun filtre', ...(groupedColumns['Segmentation'] || [])];
 
+    console.log('depuis la fonction',indicateur);
+
     // Charger les valeurs uniques pour "Période" et "Circuit"
     if (periode[0]) {
       valeurPeriodes = await fetchUniqueValues(periode[0]);
@@ -1110,8 +1110,6 @@ export const fetchColumnsByType = async (): Promise<void> => {
     console.error('Erreur lors de la récupération des colonnes :', error);
   }
 };
-
-// Appeler la fonction immédiatement pour initialiser les variables au chargement du fichier
 fetchColumnsByType().then(() => {
   // Les variables sont initialisées ici
 });

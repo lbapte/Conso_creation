@@ -422,6 +422,15 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       {/* Filtres secondaires */}
       
       <View style={styles.filterScrollContainer}>
+          {/* Zone 3 : Liste des références */}
+         {/* Ligne avec le niveau de ranking de la ref */}
+      <View style={styles.rankingContainer}>
+        <Text style={styles.rankingText}>
+          {scannedRank 
+            ? `Classement sur cet indicateur : ${scannedRank}`
+            : "Référence non trouvée dans le classement"}
+        </Text>
+      </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.additionalFilters}>
             {/* Bouton Classer par */}
@@ -602,127 +611,112 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 </Modal>
 
 
-      {/* Zone 3 : Liste des références */}
-         {/* Ligne avec le niveau de ranking de la ref */}
-      <View style={styles.rankingContainer}>
-        <Text style={styles.rankingText}>
-          {scannedRank 
-            ? `Classement de la référence sur cet indicateur : ${scannedRank}`
-            : "Référence non trouvée dans le classement"}
-        </Text>
-      </View>
+    
           {/* liste de l'ensemble des refs à ouvrir */}
       <View style={styles.referencesSection}>
   
       <FlatList
-        data={referencesData[0]} // Affiche les références de la période actuelle
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item, index }) => (
-          <View>
-          {/* Ligne principale de la référence */}
-          <TouchableOpacity
-            style={styles.referenceItem}
-            onPress={() => toggleReference(item.ean)}
-          >
-            {/* Conteneur du chevron */}
-            <View style={styles.chevronContainer}>
-              <FontAwesome
-                name={expandedRef === item.ean ? 'chevron-up' : 'chevron-down'}
-                size={14}
-                color="#2B26BF"
-              />
-            </View>
-    
-            {/* Conteneur de l'indicateur */}
-            <View style={styles.indicatorContainer}>
-              <Text style={styles.referenceIndicator}>{formatValue(item.indicatorValue)}</Text>
-            </View>
-    
-            {/* Conteneur du nom de la référence */}
-            <View style={styles.referenceContainer}>
-              <Text style={styles.referenceTitle}>{item.reference}</Text>
-            </View>
-          </TouchableOpacity>
-    
-          {/* Section extensible des indicateurs */}
-          {expandedRef === item.ean && (
-            <>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.indicatorsWrapper}>
-                {indicateur.map((indicator, idx) => (
-                  <View key={idx} style={styles.indicatorBox}>
-                    <View style={styles.indicatorTopSection}>
-                      <Text style={styles.indicatorTitle}>{indicator}</Text>
-                      <Text style={styles.indicatorValue}>
-                        {formatValue(indicatorsData?.[0]?.[0]?.[indicator])}
-                      </Text>
-                    </View>
-                    <View style={styles.indicatorMiddleSection}>
-                      <Text style={styles.indicatorSubTitle}>Écart</Text>
-                      <Text style={styles.indicatorDelta}>
-                        {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                        indicatorsData?.[1]?.[0]?.[indicator] !== undefined
-                          ? formatValue(indicatorsData[1][0][indicator] - indicatorsData[0][0][indicator])
-                          : '-'}
-                      </Text>
-                    </View>
-                    <View style={styles.indicatorBottomSection}>
-                      <Text style={styles.indicatorSubTitle}>Évolution</Text>
-                      <Text style={styles.indicatorEvolution}>
-                        {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                        indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
-                        indicatorsData[0][0][indicator] !== 0
-                          ? (
-                              ((indicatorsData[1][0][indicator] - indicatorsData[0][0][indicator]) /
-                                indicatorsData[0][0][indicator]) *
-                              100
-                            ).toFixed(1) + '%'
-                          : '-'}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-    
-              {/* Bouton switch pour activer/désactiver la comparaison */}
-              <View style={styles.switchContainer}>
-                <Switch
-                  style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-                  value={comparaison}
-                  onValueChange={(value) => {
-                    // Met à jour l'état du switch
-                    setComparaison(value);
-                    // Utilise la nouvelle valeur du switch pour mettre à jour les indicateurs
-                    toggleReferenceWithoutClosing(item.ean, value);
-                  }}
-                  ios_backgroundColor="#d3d3d3"
-                  trackColor={{ false: '#e0e0e0', true: '#2B26BF' }}
-                  thumbColor={comparaison ? '#ffffff' : '#ffffff'}
-                />
-                <Text style={styles.switchText}>
-                  Comparer avec la ref scannée
-                </Text>
-              </View>
-            </>
-          )}
-    
-          {/* Ligne de séparation */}
-          <View style={styles.separator} />
+  data={referencesData[0]}
+  keyExtractor={(item, index) => index.toString()}
+  renderItem={({ item, index }) => (
+    // 1. Conteneur global de l’item, qui contient
+    //    à la fois le bouton ET la partie extensible
+    <View style={styles.referenceItemContainer}>
+      {/* Ligne principale de la référence */}
+      <TouchableOpacity
+        style={styles.referenceItemHeader}
+        onPress={() => toggleReference(item.ean)}
+      >
+        {/* Conteneur du chevron */}
+        <View style={styles.chevronContainer}>
+          <FontAwesome
+            name={expandedRef === item.ean ? 'chevron-up' : 'chevron-down'}
+            size={14}
+            color="#2B26BF"
+          />
         </View>
-  )}
 
-                /* ✅ Vérification que la fonction s'exécute */
-          ListFooterComponent={() => (
-            <TouchableOpacity
-              style={styles.loadMoreButton}
-              onPress={() => {
-                console.log("Chargement de 20 références supplémentaires...");
-                setVisibleReferences(prev => prev + 20);
+        {/* Conteneur de l'indicateur */}
+        <View style={styles.indicatorContainer}>
+          <Text style={styles.referenceIndicator}>
+            {formatValue(item.indicatorValue)}
+          </Text>
+        </View>
+
+        {/* Conteneur du nom de la référence */}
+        <View style={styles.referenceContainer}>
+          <Text style={styles.referenceTitle}>{item.reference}</Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* 2. Contenu extensible, dans le même conteneur */}
+      {expandedRef === item.ean && (
+        <View style={styles.expandedContent}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.indicatorsWrapper}
+          >
+            {indicateur.map((indicator, idx) => (
+              <View key={idx} style={styles.indicatorBox}>
+                <View style={styles.indicatorTopSection}>
+                  <Text style={styles.indicatorTitle}>{indicator}</Text>
+                  <Text style={styles.indicatorValue}>
+                    {formatValue(indicatorsData?.[0]?.[0]?.[indicator])}
+                  </Text>
+                </View>
+                <View style={styles.indicatorMiddleSection}>
+                  <Text style={styles.indicatorSubTitle}>Écart</Text>
+                  <Text style={styles.indicatorDelta}>
+                    {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                    indicatorsData?.[1]?.[0]?.[indicator] !== undefined
+                      ? formatValue(
+                          indicatorsData[1][0][indicator] -
+                            indicatorsData[0][0][indicator]
+                        )
+                      : '-'}
+                  </Text>
+                </View>
+                <View style={styles.indicatorBottomSection}>
+                  <Text style={styles.indicatorSubTitle}>Évolution</Text>
+                  <Text style={styles.indicatorEvolution}>
+                    {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                    indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
+                    indicatorsData[0][0][indicator] !== 0
+                      ? (
+                          ((indicatorsData[1][0][indicator] -
+                            indicatorsData[0][0][indicator]) /
+                            indicatorsData[0][0][indicator]) *
+                          100
+                        ).toFixed(1) + '%'
+                      : '-'}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+
+          {/* Bouton switch pour activer/désactiver la comparaison */}
+          <View style={styles.switchContainer}>
+            <Switch
+              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+              value={comparaison}
+              onValueChange={(value) => {
+                setComparaison(value);
+                toggleReferenceWithoutClosing(item.ean, value);
               }}
-            >
-              <Text style={styles.loadMoreText}>Charger plus de références</Text>
-            </TouchableOpacity>
-          )}
-        />
+              ios_backgroundColor="#d3d3d3"
+              trackColor={{ false: '#e0e0e0', true: '#2B26BF' }}
+              thumbColor={comparaison ? '#ffffff' : '#ffffff'}
+            />
+            <Text style={styles.switchText}>Comparer avec la ref scannée</Text>
+          </View>
+        </View>
+      )}
+    </View>
+  )}
+/>
+
 
       </View>
 
@@ -733,13 +727,47 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 };
 
 const styles = StyleSheet.create({
+  /****************************
+   *  NOUVEAUX STYLES
+   ****************************/
+  // Conteneur global : englobe le bouton + contenu étendu
+  referenceItemContainer: {
+    backgroundColor: '#e1e1e1', // remplace le rouge
+    //borderWidth:1,
+    //borderColor:'#f1f1f1',
+    borderRadius: 10,
+    marginBottom:5,
+    marginHorizontal:5,
+    //margin: 2, // Espace vertical minimal entre items
+    //padding: 4, // Légère marge interne globale
+  },
+
+  // Entête cliquable (ligne principale)
+  referenceItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 7,
+    backgroundColor: 'transparent', // plus de fond rouge
+  },
+
+  // Zone étendue (indicateurs + switch) qui apparaît quand expandedRef === item.ean
+  expandedContent: {
+    marginTop: 6,
+    //paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+
+  /****************************
+   *  VOS STYLES EXISTANTS,
+   *  AVEC LE ROUGE SUPPRIMÉ
+   ****************************/
   toggleDetailsButton: {
-    //marginTop: 5,
-    //backgroundColor: '#3A3FD4',
-    //paddingVertical: 8,
     paddingHorizontal: 15,
     borderRadius: 8,
-    alignSelf: 'center', // Centrer le bouton sous les indicateurs
+    alignSelf: 'center',
   },
   toggleDetailsText: {
     color: 'white',
@@ -747,8 +775,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
-
-
   operatorsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -756,9 +782,10 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   filterScrollContainer: {
-    flexDirection: 'row',
-    paddingVertical: 5,
+    flexDirection: 'column',
+    paddingVertical: 10,
     backgroundColor: '#F5F5F5',
+    borderRadius: 15,
   },
   operatorButton: {
     backgroundColor: '#F5F5F5',
@@ -774,18 +801,15 @@ const styles = StyleSheet.create({
   },
   selectedOperator: {
     backgroundColor: '#2B26BF',
-    
   },
   selectedOperatorText: {
     color: 'white',
-    
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
     marginTop: 10,
-    
   },
   applyButton: {
     backgroundColor: '#3A3FD4',
@@ -817,7 +841,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
-
   input: {
     borderWidth: 1,
     borderColor: '#3A3FD4',
@@ -833,27 +856,18 @@ const styles = StyleSheet.create({
     color: '#3A3FD4',
     marginBottom: 5,
   },
-
-
   chevronContainer: {
-    width: 15, // Largeur fixe pour ne pas bouger
+    width: 15,
     alignItems: 'center',
   },
   indicatorContainer: {
-    width: 50, // Largeur fixe pour les indicateurs
+    width: 50,
     alignItems: 'center',
   },
   referenceContainer: {
-    flex: 1, // Utilise l'espace restant
+    flex: 1,
   },
-  referenceItem: {
-    flexDirection: 'row', // Alignement horizontal
-    justifyContent: 'space-between', // Espacement entre les éléments
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-    paddingVertical: 12, // Réduit l’espacement
-    paddingHorizontal: 20,
-  },
+  // SUPPRIMÉ L'ANCIEN referenceItem : plus besoin de backgroundColor rouge ici
   referenceIndicator: {
     fontSize: 14,
     fontWeight: 'bold',
@@ -861,16 +875,16 @@ const styles = StyleSheet.create({
   },
   referenceTitle: {
     fontSize: 12,
-    //fontWeight: 'bold',
-    color: '#000',
-    flexShrink: 1, // Garde le texte sur une seule ligne
+    color: '#0C0F40',
+    flexShrink: 1,
+    fontWeight:'bold',
   },
   referenceTitleWhite: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
     color: 'white',
-    flexShrink: 1, // Garde le texte sur une seule ligne
-    marginLeft:10,
+    flexShrink: 1,
+    marginLeft: 10,
   },
   separator: {
     height: 1,
@@ -881,15 +895,18 @@ const styles = StyleSheet.create({
     width: 100,
     height: 140,
     marginHorizontal: 4,
-    backgroundColor: 'white',
+    backgroundColor: '#979EFF',
     borderRadius: 8,
     overflow: 'hidden',
   },
   indicatorTopSection: {
     flex: 1.5,
     backgroundColor: 'transparent',
-    borderWidth:0,
-    borderColor:'white',
+    borderWidth: 0,
+    borderBottomWidth:0,
+    borderTopLeftRadius:8,
+    borderTopRightRadius:8,
+    borderColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 4,
@@ -907,12 +924,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: 'white',
-
   },
   indicatorTitle: {
     fontSize: 12,
-    fontWeight: 'medium',
-    color: '#000',
+    fontWeight: 'bold',
+    color: 'white',
     textAlign: 'center',
   },
   indicatorSubTitle: {
@@ -923,7 +939,7 @@ const styles = StyleSheet.create({
   indicatorValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#2B26BF',
+    color: 'white',
   },
   indicatorDelta: {
     fontSize: 14,
@@ -935,8 +951,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
-
-  
   safeArea: {
     flex: 1,
     backgroundColor: 'transparent',
@@ -946,9 +960,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   fond: {
-   flex:1,
+    flex: 1,
   },
-  
   filterContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -959,8 +972,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#3A3FD4',
     marginHorizontal: 4,
     borderRadius: 8,
-    //borderWidth:1,
-    //borderColor:'#98FFBF',
     paddingVertical: 10,
     paddingHorizontal: 5,
     justifyContent: 'center',
@@ -975,24 +986,24 @@ const styles = StyleSheet.create({
   filterValue: {
     fontSize: 12,
     color: 'white',
-    
   },
   indicatorsWrapper: {
     overflow: 'hidden',
     marginTop: 6,
-    marginBottom:8,
+    marginBottom: 8,
+    backgroundColor: 'transparent', // Retiré le rouge
   },
   indicatorsContainer: {
     flexDirection: 'row',
-    height:200,
+    height: 200,
   },
   additionalFilters: {
-  
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: 'transparent',
     padding: 8,
+    paddingTop: 10,
   },
   dropdownButton: {
     flex: 1,
@@ -1001,16 +1012,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     padding: 10,
     alignItems: 'center',
-    borderWidth:1,
-    borderColor:'#3A3FD4',
+    borderWidth: 1,
+    borderColor: '#3A3FD4',
   },
   dropdownText: {
     fontSize: 14,
-    fontWeight:'bold',
+    fontWeight: 'bold',
     color: '#3A3FD4',
   },
-  
-  
   referenceData: {
     marginTop: 8,
   },
@@ -1059,13 +1068,17 @@ const styles = StyleSheet.create({
   },
   referencesSection: {
     flex: 1,
-    padding: 1,
-    backgroundColor: '#F5F5F5',
+    padding: 0,
+    //borderTopRightRadius:15,
+    //borderTopLeftRadius:15,
+    backgroundColor: '#f5f5f5',
+    marginBottom:-50,
+    //paddingTop:20,
   },
   closeButtonTop: {
     padding: 4,
-    paddingLeft:8,
-    paddingRight:8,
+    paddingLeft: 8,
+    paddingRight: 8,
     backgroundColor: '#98FFBF',
     borderRadius: 8,
     alignSelf: 'flex-start',
@@ -1073,8 +1086,8 @@ const styles = StyleSheet.create({
   },
   closeButtonTopClearBack: {
     padding: 4,
-    paddingLeft:8,
-    paddingRight:8,
+    paddingLeft: 8,
+    paddingRight: 8,
     backgroundColor: '#2B26BF',
     borderRadius: 8,
     alignSelf: 'flex-start',
@@ -1099,45 +1112,43 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
-    width:200,
-    alignSelf:'center',
-    margin:10,
+    width: 200,
+    alignSelf: 'center',
+    margin: 10,
   },
   loadMoreText: {
     color: 'white',
     fontWeight: 'bold',
     fontSize: 14,
-    alignSelf:'center',
-    width:100,
+    alignSelf: 'center',
+    width: 100,
   },
   rankingContainer: {
     alignItems: 'center',
     borderRadius: 8,
-    paddingVertical:0,
+    paddingVertical: 5,
   },
   rankingText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#3A3FD4',
   },
   selectedModalOption: {
-    backgroundColor: '#2B26BF', // Bleu pour l'option sélectionnée
+    backgroundColor: '#2B26BF',
   },
   selectedModalOptionText: {
-    color: 'white', // Texte blanc pour l'option sélectionnée
+    color: 'white',
     fontWeight: 'bold',
   },
   headerContainer: {
-    flexDirection: 'row',  // Aligne horizontalement
-    alignItems: 'center',  // Centre verticalement
-    //justifyContent: 'space-between',  // Espacement entre les éléments
-    paddingHorizontal: 10,  // Espacement sur les côtés
-    marginBottom: 10, // Espacement sous la section
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    marginBottom: 10,
   },
-
   container: {
-    flexDirection: 'row',  // Affichage en ligne pour le switch et le texte
-    alignItems: 'center',  // Centrage vertical
+    flexDirection: 'row',
+    alignItems: 'center',
     marginVertical: 10,
   },
   text: {
@@ -1145,18 +1156,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   switchContainer: {
-    display:'flex',
     flexDirection: 'row',
     alignItems: 'center',
-    margin: 10,
-    //paddingHorizontal: 10,
+    paddingHorizontal:20,
+    // backgroundColor: 'red', // Retiré si non désiré
   },
   switchText: {
     marginLeft: 10,
     fontSize: 16,
     color: '#333',
   },
-
 });
+
 
 export default AppPage;

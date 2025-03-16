@@ -67,14 +67,16 @@ const Historique = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.Header}>
-        <Text style={styles.title}>Historique</Text>
-      </View>
-      
-      <View style={styles.filterContainer}>
-        <TouchableOpacity style={styles.filterButton} onPress={() => setFilterModalVisible(true)}>
-          <Text style={styles.filterButtonText}>Filtrer ({selectedFilter})</Text>
-        </TouchableOpacity>
+      <View style={styles.blocHeader}>
+        <View style={styles.Header}>
+          <Text style={styles.title}>Historique</Text>
+        </View>
+        
+        <View style={styles.filterContainer}>
+          <TouchableOpacity style={styles.filterButton} onPress={() => setFilterModalVisible(true)}>
+            <Text style={styles.filterButtonText}>Filtrer : ({selectedFilter})</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       
       <View style={styles.Body}>
@@ -123,16 +125,16 @@ const Historique = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#7579FF',marginBottom:-40, },
-  Header: { justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  filterContainer: { alignItems: 'center', marginBottom: 10 },
+  container: { flex: 1, padding: 16, backgroundColor: '#4750D1',marginBottom:-40, },
+  Header: { justifyContent: 'center', alignItems: 'center', marginLeft: 20 },
+  filterContainer: { alignItems: 'center', margin: 10 },
   title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
-  filterButton: { backgroundColor: '#3A3FD4', padding: 10, borderRadius: 5 },
+  filterButton: { backgroundColor: 'transparent', padding: 10, borderRadius: 8, borderWidth:1, borderColor:'#98FFBF', },
   filterButtonText: { color: 'white', fontWeight: 'bold' },
-  Body: { flex: 8, backgroundColor: '#fff',borderRadius:20, },
-  itemContainer: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#ccc' },
-  itemTitle: { fontSize: mainPoliceSize, fontWeight: 'bold' },
-  itemDate: { fontSize: 12, color: '#666', marginTop: 4 },
+  Body: { flex: 8, backgroundColor: '#fff',borderRadius:20, paddingHorizontal:10},
+  itemContainer: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#ACB2FF' },
+  itemTitle: { fontSize: mainPoliceSize, fontWeight: 'bold', color:'#0C0F40', },
+  itemDate: { fontSize: 12, color: '#2B26BF', marginTop: 4 },
   modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' },
   modalContent: { width: '80%', backgroundColor: 'white', borderRadius: 8, padding: 16, alignItems: 'center' },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16, color: '#3A3FD4' },
@@ -142,6 +144,7 @@ const styles = StyleSheet.create({
   filterText: { fontSize: 14, color: '#3A3FD4' },
   closeButton: { marginTop: 16, padding: 10, backgroundColor: '#3A3FD4', borderRadius: 8 },
   closeButtonText: { color: 'white', fontSize: 14 },
+  blocHeader: {display:'flex', flexDirection:'row', align:'center', justifyContent:'start',paddingVertical:10,},
 });
 
 export default Historique;

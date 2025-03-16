@@ -14,7 +14,7 @@ import {
   fetchDataPage, 
   getRemoteTotalRowCount, 
   cleanTable, 
-  loadingData  // Cette fonction doit pouvoir utiliser un callback pour la progression
+  loadingData,  // Cette fonction doit pouvoir utiliser un callback pour la progression
 } from '../utils/database';
 import LogoBlanc from '../assets/svg/LogoBlanc.svg';
 import io from 'socket.io-client';
@@ -154,6 +154,7 @@ export default function SettingsScreen({ onClose }) {
       alert('Erreur lors du chargement des données');
     } finally {
       setIsLoading(false);
+      loadingData();
     }
   };
 
