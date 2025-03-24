@@ -1,29 +1,50 @@
-const express = require('express')
-const mysql = require('mysql')
-const cors = require('cors')
+require('dotenv').config();
 
-const app = express()
-app.use(cors())
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const bodyParser = require('body-parser');
+const mysql = require('mysql2/promise');
+const cors = require('cors');
+const app = express();
+const secretKey ="6729a6512d71731e04be69259feedd9ee3825b34f053a7dede6bd24960981e03";
 
-const db = mysql.createConnection({
-    host: "localhost",
-    user: "root",
-    password: "",
-    database: "conso_app"
-})
+app.use(bodyParser.json());
+app.use(cors());
 
-app.get('/', (re, res) => {
-    return res.json("Backend side")
-})
+// Create a connection pool to the MySQL database
+const pool = mysql.createPool({
+  host: "localhost",
+  user: "lbapte1",
+  password: "Fh<2Mfs;L@>V",
+  database: "conso_app",
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
 
-app.get('/users', (re, res) => {
-    const sql = "SELET * FROM users";
-    db.query(sql, (err, data)=> {
-        if(err) return res.json(err);
-        return res.json 
-    })
-})
+app.post('/auth/login', async (req, res) => {
+  const { username, password } = req.body;
 
-app.listen(8081, ()=>{
-    console.log("listening")
-})
+  try {
+    const [rows] = await pool.execute(
+      'SELECT id, email, entreprise FROM conso_app.users',
+      [username, password]
+    );
+
+    if (rows.length > 0) {
+      const user = rows[0];
+      const token = jwt.sign({ id: user.id, entreprise: user.entreprise }, secretKey, { expiresIn: '1h' });
+      res.json({ token, entreprise: user.entreprise });
+    } else {
+      res.status(401).json({ message: 'Invalid credentials' });
+    }
+  } catch (error) {
+    console.error('Error executing query:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+const PORT = process.env.PORT || 8081;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
