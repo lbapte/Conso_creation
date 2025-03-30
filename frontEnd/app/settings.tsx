@@ -30,7 +30,7 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
 
   const handleLogin = async () => {
     try {
-      const response = await axios.post('http://localhost:8081/auth/login', {
+      const response = await axios.post('http://localhost:3000/auth/login', {
         username,
         password,
       });

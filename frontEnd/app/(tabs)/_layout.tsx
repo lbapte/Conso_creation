@@ -2,8 +2,8 @@ import { Tabs, usePathname } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, StyleSheet, TouchableOpacity, Modal, AppState, AppStateStatus,Text } from 'react-native';
-import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import { SafeAreaView, View, StyleSheet, TouchableOpacity, Modal, AppState, AppStateStatus, Text } from 'react-native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import SettingsScreen from '../settings';
 import Logo from '../../assets/svg/Logo.svg';
@@ -26,7 +26,6 @@ export default function TabLayout() {
   const [companyName, setCompanyName] = useState('');
   const pathname = usePathname();
 
-  // Vérifier le statut de connexion et récupérer le nom d'entreprise depuis AsyncStorage
   useEffect(() => {
     const checkLoginStatus = async () => {
       const token = await AsyncStorage.getItem('jwt');
@@ -39,7 +38,6 @@ export default function TabLayout() {
     checkLoginStatus();
   }, []);
 
-  // Connexion Socket.IO globale
   useEffect(() => {
     if (isLoggedIn && companyName) {
       const socket = io(API_URL, { transports: ['websocket'] });
@@ -55,11 +53,12 @@ export default function TabLayout() {
           AsyncStorage.setItem('newData', 'true');
         }
       });
-      return () => socket.disconnect();
+      return () => {
+        socket.disconnect();
+      };
     }
   }, [isLoggedIn, companyName]);
 
-  // Mise à jour du flag newData via AppState et polling (fallback)
   useEffect(() => {
     const checkNewData = async () => {
       try {
@@ -75,7 +74,6 @@ export default function TabLayout() {
       }
     };
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    // Vérification initiale
     checkNewData();
     const interval = setInterval(() => {
       checkNewData();
@@ -86,122 +84,108 @@ export default function TabLayout() {
     };
   }, []);
 
-  // Afficher le bouton réglages uniquement sur la page d'accueil (index)
   const showSettingsIcon = pathname === '/index' || pathname === '/';
 
   return (
-   
-      <View style={styles.contentContainer}>
-     
-        <Tabs
-          screenOptions={{
-            tabBarActiveTintColor: '#98FFBF',
-            tabBarInactiveTintColor: '#FFF',
-            tabBarStyle: {
-              position:'absolute',
-              marginLeft:'12.5%',
-              bottom:'25',
-              alignSelf:'center',
-              height: '60',
-              width:'75%',
-              marginBottom: 0,
-              borderTopWidth: 0,
-              backgroundColor: 'rgba(16,23,255,0.5)',
-              borderRadius:1000,
-              overflow: 'hidden',
-            },
-            tabBarBackground: () => (
-              <BlurView tint="light" intensity={50} style={StyleSheet.absoluteFill} />
+    <View style={styles.contentContainer}>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: '#98FFBF',
+          tabBarInactiveTintColor: '#FFF',
+          tabBarStyle: {
+            position: 'absolute',
+            marginLeft: '12.5%',
+            bottom: 25,
+            alignSelf: 'center',
+            height: 60, // Change to a number
+            width: '75%',
+            marginBottom: 0,
+            borderTopWidth: 0,
+            backgroundColor: 'rgba(16,23,255,0.5)',
+            borderRadius: 1000,
+            overflow: 'hidden',
+          },
+          tabBarBackground: () => (
+            <BlurView tint="light" intensity={50} style={StyleSheet.absoluteFill} />
+          ),
+          tabBarLabelStyle: {
+            marginTop: 5,
+            padding: 0,
+            display: 'none',
+          },
+          headerShown: false,
+        }}
+      >
+        <Tabs.Screen
+          name="explore"
+          options={{
+            title: 'Recherche',
+            tabBarIcon: ({ color }) => (
+              <View style={styles.indicator}>
+                <Recherche width={30} height={30} fill={color} />
+              </View>
             ),
-           
-            tabBarLabelStyle: {
-              marginTop: 5,
-              padding: 0,
-              display:'none',
-            },
-            headerShown: false,
-            
           }}
-        >
-          <Tabs.Screen
-            name="explore"
-            options={{
-              title: 'Recherche',
-              tabBarIcon: ({ color }) => (
-                <View style={styles.indicator}>
-                  <Recherche width={30} height={30} fill={color} style={{ color }}/>
-                </View>
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="index"
-            options={{
+        />
+        <Tabs.Screen
+          name="index"
+          options={{
             title: 'Scan',
-              tabBarIcon: ({ color }) => (
-                <View style={styles.indicator}>
-                  <Logo width={35} height={35} fill={color} style={{ color }}/>
-                </View>
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="historique"
-            options={{
-              title: 'Historique',
-              tabBarIcon: ({ color }) => (
-                <View style={styles.indicator}>
-                  <Historique width={30} height={30} fill={color} style={{ color }}/>
-                </View>
-              ),
-            }}
-          />
-        </Tabs>
+            tabBarIcon: ({ color }) => (
+              <View style={styles.indicator}>
+                <Logo width={35} height={35} fill={color} />
+              </View>
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="historique"
+          options={{
+            title: 'Historique',
+            tabBarIcon: ({ color }) => (
+              <View style={styles.indicator}>
+                <Historique width={30} height={30} fill={color} />
+              </View>
+            ),
+          }}
+        />
+      </Tabs>
 
-        {showSettingsIcon && (
-          <>
-            {/* Bouton Paramètres */}
-            <TouchableOpacity onPress={() => setIsSettingsOpen(true)} style={styles.settingsButton}>
-              <Ionicons
-                name={hasNewData ? 'settings' : 'settings-outline'}
-                size={30}
-                color={hasNewData ? '#98FFBF' : '#7377FD'}
-              />
-            </TouchableOpacity>
-
-            {/* Modale pour afficher les réglages */}
-            <Modal visible={isSettingsOpen} animationType="slide" transparent>
-              <SettingsScreen onClose={() => setIsSettingsOpen(false)} />
-            </Modal>
-          </>
-        )}
-      </View>
-   
+      {showSettingsIcon && (
+        <>
+          <TouchableOpacity onPress={() => setIsSettingsOpen(true)} style={styles.settingsButton}>
+            <Ionicons
+              name={hasNewData ? 'settings' : 'settings-outline'}
+              size={30}
+              color={hasNewData ? '#98FFBF' : '#7377FD'}
+            />
+          </TouchableOpacity>
+          <Modal visible={isSettingsOpen} animationType="slide" transparent>
+            <SettingsScreen onClose={() => setIsSettingsOpen(false)} />
+          </Modal>
+        </>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  
   contentContainer: {
     flex: 1,
     backgroundColor: 'transparent',
-
   },
-  absoluteFill:{
-    borderRadius:30,
+  absoluteFill: {
+    borderRadius: 30,
   },
   footerSafeArea: {
-    // La SafeAreaView ici s'assure uniquement du padding en bas, sans étendre le fond au-dessus
     backgroundColor: 'transparent',
-    width:0,
+    width: 0,
   },
   indicator: {
-    top : 10,
-    justifyContent:'center',
-    alignItems:'center',
-    
+    top: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  
   settingsButton: {
     position: 'absolute',
     top: 50,
@@ -210,7 +194,4 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 50,
   },
- 
-  
 });
-
