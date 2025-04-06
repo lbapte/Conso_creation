@@ -35,6 +35,7 @@ import {
 import { FontAwesome } from '@expo/vector-icons';
 import { addEanToList, getEanList, initializeHistoricalEanList, removeEanFromList} from '../utils/EanDataContext';
 import SwipeableItem from 'react-native-swipeable-item';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 interface ModalPageProps {
   barcode: string; // Code EAN transmis depuis la page Historique
@@ -84,6 +85,7 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const [eanListe, setEanListe] = useState<string[]>([]);
 
   const [permission, requestPermission] = useCameraPermissions();
+  const [i, setI] = useState<number>(0);
 
   // Fonction lancée lorsque la vue caméra détecte un code
   const handleCameraScan = (result: BarcodeScanningResult) => {
@@ -91,7 +93,7 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     const codeUn = barcode ? String(barcode).trim() : "";
     const codeDeux = result.data ? String(result.data).trim() : "";
     addEanToList(codeUn,codeDeux);
-    console.log("Code ajouté");
+    setI((prev) => prev + 1);
     // Vous pouvez ajouter ici d'autres actions, par exemple mettre à jour un état ou déclencher une vibration
   };
 
@@ -101,7 +103,7 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       const newBarcode = ean ? String(ean).trim() : "";
       // Ajoute le nouveau code barre dans la liste associée à la référence scannée
       await addEanToList(referenceCode, newBarcode);
-      console.log("Code ajouté :", newBarcode);
+      setI((prev) => prev + 1);
       // Vous pouvez ici mettre à jour l'état ou déclencher d'autres actions
     } catch (error) {
       console.error("Erreur lors de l'ajout du code EAN :", error);
@@ -357,7 +359,8 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     visibleReferences,
     advancedFilter,
     filterValue,
-    selectedListing]);
+    selectedListing,
+    i]);
 
 
   const [facing, setFacing] = useState<CameraType>('back');
@@ -408,7 +411,7 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       try {
         await removeEanFromList(referenceKey, eanToRemove);
         console.log(`EAN ${eanToRemove} supprimé`);
-        refreshList(); // Vous pouvez déclencher un rafraîchissement de la liste après suppression
+        setI((prev) => prev + 1);// Vous pouvez déclencher un rafraîchissement de la liste après suppression
       } catch (error) {
         console.error("Erreur lors de la suppression de l'EAN:", error);
       }
@@ -424,7 +427,16 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       </TouchableOpacity>
     );
 
-
+    const formatIndicatorValue = (value: number): string => {
+      const absVal = Math.abs(value);
+      if (absVal < 1) {
+        return value.toFixed(2);
+      } else if (absVal < 20) {
+        return value.toFixed(1);
+      } else {
+        return value.toFixed(0);
+      }
+    };
 
   return (
     <LinearGradient
@@ -483,49 +495,53 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
               {/* Indicateurs */}
               <View style={styles.indicatorsWrapper}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {indicateur.map((indicator, index) => (
-                    <View
-                      key={index}
-                      style={[
-                        styles.indicatorBox,
-                        { height: showDetailedIndicators ? expandedIndicatorHeight : baseIndicatorHeight },
-                      ]}
-                    >
-                      <View style={styles.indicatorTopSection}>
-                        <Text style={styles.indicatorTitle} numberOfLines={2} ellipsizeMode="tail">
-                          {indicator}
-                        </Text>
-                        <Text style={styles.indicatorValue}>
-                          {data.length > 0 ? Number(data[0][0][indicator]).toFixed(2) || '-' : '-'}
-                        </Text>
-                      </View>
-                      {showDetailedIndicators && (
-                        <View style={styles.indicatorMiddleSection}>
-                          <Text style={styles.indicatorSubTitle}>Écart</Text>
-                          <Text style={styles.indicatorDelta}>
-                            {data?.[0]?.[0]?.[indicator] !== undefined &&
-                            data?.[1]?.[0]?.[indicator] !== undefined
-                              ? (data[1][0][indicator] - data[0][0][indicator]).toFixed(0)
-                              : '-'}
-                          </Text>
-                        </View>
-                      )}
-                      {showDetailedIndicators && (
-                        <View style={styles.indicatorBottomSection}>
-                          <Text style={styles.indicatorSubTitle}>Évolution</Text>
-                          <Text style={styles.indicatorEvolution}>
-                            {data?.[0]?.[0]?.[indicator] !== undefined &&
-                            data?.[1]?.[0]?.[indicator] !== undefined
-                              ? (
-                                  ((data[1][0][indicator] - data[0][0][indicator]) / data[0][0][indicator]) *
-                                  100
-                                ).toFixed(1) + '%'
-                              : '-'}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  ))}
+    {indicateur.map((indicator, idx) => (
+      <View
+        key={idx}
+        style={[
+          styles.indicatorBox,
+          { height: showDetailedIndicators ? expandedIndicatorHeight : baseIndicatorHeight },
+        ]}
+      >
+        <View style={styles.indicatorTopSection}>
+          <Text style={styles.indicatorTitle} numberOfLines={2} ellipsizeMode="tail">
+            {indicator}
+          </Text>
+          <Text style={styles.indicatorValue}>
+            {data?.[0]?.[0]?.[indicator] !== undefined
+              ? formatIndicatorValue(Number(data[0][0][indicator]))
+              : '-'}
+          </Text>
+        </View>
+        {showDetailedIndicators && (
+          <View style={styles.indicatorMiddleSection}>
+            <Text style={styles.indicatorSubTitle}>Écart</Text>
+            <Text style={styles.indicatorDelta}>
+              {data?.[0]?.[0]?.[indicator] !== undefined &&
+              data?.[1]?.[0]?.[indicator] !== undefined
+                ? formatIndicatorValue(
+                    Number(data[1][0][indicator]) - Number(data[0][0][indicator])
+                  )
+                : '-'}
+            </Text>
+          </View>
+        )}
+        {showDetailedIndicators && (
+          <View style={styles.indicatorBottomSection}>
+            <Text style={styles.indicatorSubTitle}>Évolution</Text>
+            <Text style={styles.indicatorEvolution}>
+              {data?.[0]?.[0]?.[indicator] !== undefined &&
+              data?.[1]?.[0]?.[indicator] !== undefined
+                ? formatIndicatorValue(
+                    (((data[1][0][indicator] - data[0][0][indicator]) / data[0][0][indicator]) *
+                      100)
+                  ) + '%'
+                : '-'}
+            </Text>
+          </View>
+        )}
+      </View>
+    ))}
                 </ScrollView>
               </View>
             </>
@@ -540,7 +556,7 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
                 facing={facing}
               />
               <TouchableOpacity style={styles.switchButton} onPress={() => setSelectedSelection('Indicateurs')}>
-                <Text style={styles.buttonText}>Retour aux indicateurs</Text>
+                <Text style={styles.buttonText}>Fermer</Text>
               </TouchableOpacity>
             </View>  
           )}
@@ -581,7 +597,7 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
                 )}
               </View>
               <TouchableOpacity style={styles.switchButton} onPress={() => setSelectedSelection('Indicateurs')}>
-                <Text style={styles.buttonText}>Retour aux indicateurs</Text>
+                <Text style={styles.buttonText}>Fermer</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -622,6 +638,14 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
           <View style={styles.additionalFilters}>
             {/* Bouton Classer par */}
             <TouchableOpacity
+              style={styles.dropdownButtonBis}
+              onPress={() => openModal('listing')}
+            >
+              <Text style={styles.dropdownTextBis}>Liste</Text>
+              <Text style={styles.selectedValueBis} numberOfLines={1} ellipsizeMode="tail">{selectedListing}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={styles.dropdownButton}
               onPress={() => openModal('classerPar')}
             >
@@ -655,14 +679,6 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
                   : 'Aucun'}
               </Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.dropdownButton}
-              onPress={() => openModal('listing')}
-            >
-              <Text style={styles.dropdownText}>Liste</Text>
-              <Text style={styles.selectedValue} numberOfLines={1} ellipsizeMode="tail">{filterValue || 'Choisir'}</Text>
-            </TouchableOpacity>
             
           </View>
         </ScrollView>
@@ -682,7 +698,7 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
               data={modalOptions}
               keyExtractor={(item, index) => index.toString()}
               renderItem={({ item }) => {
-                const isSelected = item === sortBy || item === filterValue;
+                const isSelected = item === sortBy || item === filterValue || item === selectedListing;
 
                 return (
                   <TouchableOpacity
@@ -806,249 +822,277 @@ const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
         </KeyboardAvoidingView>
       </Modal>
 
-
-    
-          {/* liste de l'ensemble des refs à ouvrir */}
+      {/* liste de l'ensemble des refs à ouvrir */}
       {selectedListing === 'Liste automatique' && (
-      <View style={styles.referencesSection}>
-  
-      <FlatList
+  <View style={styles.referencesSection}>
+    <FlatList
       data={referencesData[0]}
       keyExtractor={(item, index) => index.toString()}
       renderItem={({ item, index }) => (
-    // 1. Conteneur global de l’item, qui contient
-    //    à la fois le bouton ET la partie extensible
-    <View style={styles.referenceItemContainer}>
-      {/* Ligne principale de la référence */}
-      <TouchableOpacity
-        style={styles.referenceItemHeader}
-        onPress={() => toggleReference(item.ean)}
-      >
-        {/* Conteneur du chevron */}
-        <View style={styles.chevronContainer}>
-          <FontAwesome
-            name={expandedRef === item.ean ? 'chevron-up' : 'chevron-down'}
-            size={14}
-            color="#2B26BF"
-          />
-        </View>
-
-        {/* Conteneur de l'indicateur */}
-        <View style={styles.indicatorContainer}>
-          <Text style={styles.referenceIndicator}>
-            {formatValue(item.indicatorValue)}
-          </Text>
-        </View>
-
-        {/* Conteneur du nom de la référence */}
-       
-        <View style={styles.referenceContainer}>
-          <Text style={styles.referenceTitle}>{item.reference}</Text>
-        </View>
-      </TouchableOpacity>
-
-      {/* 2. Contenu extensible, dans le même conteneur */}
-      {expandedRef === item.ean && (
-        <View style={styles.expandedContent}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.indicatorsWrapper}
+        // Conteneur global de l’item
+        <View style={[
+          styles.referenceItemContainer,
+          item.ean === barcode && styles.referenceItemContainerBis // style spécial si l'item.ean correspond à barcode
+        ]}>
+          {/* Ligne principale de la référence */}
+          <TouchableOpacity
+            style={styles.referenceItemHeader}
+            onPress={() => toggleReference(item.ean)}
           >
-            {indicateur.map((indicator, idx) => (
-              <View key={idx} style={styles.indicatorBox}>
-                <View style={styles.indicatorTopSection}>
-                  <Text style={styles.indicatorTitle}>{indicator}</Text>
-                  <Text style={styles.indicatorValue}>
-                    {formatValue(indicatorsData?.[0]?.[0]?.[indicator])}
-                  </Text>
-                </View>
-                <View style={styles.indicatorMiddleSection}>
-                  <Text style={styles.indicatorSubTitle}>Écart</Text>
-                  <Text style={styles.indicatorDelta}>
-                    {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                    indicatorsData?.[1]?.[0]?.[indicator] !== undefined
-                      ? formatValue(
-                          indicatorsData[1][0][indicator] -
-                            indicatorsData[0][0][indicator]
-                        )
-                      : '-'}
-                  </Text>
-                </View>
-                <View style={styles.indicatorBottomSection}>
-                  <Text style={styles.indicatorSubTitle}>Évolution</Text>
-                  <Text style={styles.indicatorEvolution}>
-                    {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                    indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
-                    indicatorsData[0][0][indicator] !== 0
-                      ? (
-                          ((indicatorsData[1][0][indicator] -
-                            indicatorsData[0][0][indicator]) /
-                            indicatorsData[0][0][indicator]) *
-                          100
-                        ).toFixed(1) + '%'
-                      : '-'}
-                  </Text>
-                </View>
+            {/* Conteneur du chevron */}
+            <View style={styles.chevronContainer}>
+              <FontAwesome
+                name={expandedRef === item.ean ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color="#2B26BF"
+              />
+            </View>
+  
+            {/* Conteneur de l'indicateur */}
+            <View style={styles.indicatorContainer}>
+              <Text style={styles.referenceIndicator}>
+                {formatValue(item.indicatorValue)}
+              </Text>
+            </View>
+  
+            {/* Conteneur du nom de la référence */}
+            <View style={styles.referenceContainer}>
+              <Text style={styles.referenceTitle}>{item.reference}</Text>
+            </View>
+          </TouchableOpacity>
+  
+          {/* Contenu extensible */}
+          {expandedRef === item.ean && (
+            <View style={styles.expandedContent}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.indicatorsWrapper}
+              >
+                {indicateur.map((indicator, idx) => (
+                  <View key={idx} style={styles.indicatorBox}>
+                    <View style={styles.indicatorTopSection}>
+                      <Text style={styles.indicatorTitle}>{indicator}</Text>
+                      <Text style={styles.indicatorValue}>
+                        {formatValue(indicatorsData?.[0]?.[0]?.[indicator])}
+                      </Text>
+                    </View>
+                    <View style={styles.indicatorMiddleSection}>
+                      <Text style={styles.indicatorSubTitle}>Écart</Text>
+                      <Text style={styles.indicatorDelta}>
+                        {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                        indicatorsData?.[1]?.[0]?.[indicator] !== undefined
+                          ? formatValue(
+                              indicatorsData[1][0][indicator] -
+                              indicatorsData[0][0][indicator]
+                            )
+                          : '-'}
+                      </Text>
+                    </View>
+                    <View style={styles.indicatorBottomSection}>
+                      <Text style={styles.indicatorSubTitle}>Évolution</Text>
+                      <Text style={styles.indicatorEvolution}>
+                        {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                        indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
+                        indicatorsData[0][0][indicator] !== 0
+                          ? (
+                              ((indicatorsData[1][0][indicator] -
+                                indicatorsData[0][0][indicator]) /
+                                indicatorsData[0][0][indicator]) *
+                              100
+                            ).toFixed(1) + '%'
+                          : '-'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+  
+              {/* Bouton switch pour activer/désactiver la comparaison */}
+              <View style={styles.switchContainer}>
+                <Switch
+                  style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                  value={comparaison}
+                  onValueChange={(value) => {
+                    setComparaison(value);
+                    toggleReferenceWithoutClosing(item.ean, value);
+                  }}
+                  ios_backgroundColor="#d3d3d3"
+                  trackColor={{ false: '#e0e0e0', true: '#2B26BF' }}
+                  thumbColor={comparaison ? '#ffffff' : '#ffffff'}
+                />
+                <Text style={styles.switchText}>Comparer avec la ref scannée</Text>
               </View>
-            ))}
-          </ScrollView>
-
-          {/* Bouton switch pour activer/désactiver la comparaison */}
-          <View style={styles.switchContainer}>
-            <Switch
-              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-              value={comparaison}
-              onValueChange={(value) => {
-                setComparaison(value);
-                toggleReferenceWithoutClosing(item.ean, value);
-              }}
-              ios_backgroundColor="#d3d3d3"
-              trackColor={{ false: '#e0e0e0', true: '#2B26BF' }}
-              thumbColor={comparaison ? '#ffffff' : '#ffffff'}
-            />
-            <Text style={styles.switchText}>Comparer avec la ref scannée</Text>
-          </View>
+            </View>
+          )}
         </View>
       )}
-    </View>
-  )}
-/>
-
-
-      </View>
+    />
+  </View>
       )}
 
-{selectedListing === 'Ajout manuel' && (
-      <View style={styles.referencesSection}>
-      
-      { referencesDataBis[0].length === 0 && (
-        <Text style={styles.modalLabel}>La liste est vide</Text>
-      )}
-  
-      <FlatList
-            data={referencesDataBis[0]}
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={({ item, index }) => (
-          // 1. Conteneur global de l’item, qui contient
-          //    à la fois le bouton ET la partie extensible
-          <View style={styles.referenceItemContainer}>
-            {/* Ligne principale de la référence */}
-            <TouchableOpacity
-              style={styles.referenceItemHeader}
-              onPress={() => toggleReference(item.ean)}
-            >
-              {/* Conteneur du chevron */}
-              <View style={styles.chevronContainer}>
-                <FontAwesome
-                  name={expandedRef === item.ean ? 'chevron-up' : 'chevron-down'}
-                  size={14}
-                  color="#2B26BF"
-                />
-              </View>
-
-              {/* Conteneur de l'indicateur */}
-              <View style={styles.indicatorContainer}>
-                <Text style={styles.referenceIndicator}>
-                  {formatValue(item.indicatorValue)}
-                </Text>
-              </View>
-
-              {/* Conteneur du nom de la référence */}
-            
-              <View style={styles.referenceContainer}>
-                <Text style={styles.referenceTitle}>{item.reference}</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* 2. Contenu extensible, dans le même conteneur */}
-            {expandedRef === item.ean && (
-              <View style={styles.expandedContent}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.indicatorsWrapper}
-                >
-                  {indicateur.map((indicator, idx) => (
-                    <View key={idx} style={styles.indicatorBox}>
-                      <View style={styles.indicatorTopSection}>
-                        <Text style={styles.indicatorTitle}>{indicator}</Text>
-                        <Text style={styles.indicatorValue}>
-                          {formatValue(indicatorsData?.[0]?.[0]?.[indicator])}
-                        </Text>
-                      </View>
-                      <View style={styles.indicatorMiddleSection}>
-                        <Text style={styles.indicatorSubTitle}>Écart</Text>
-                        <Text style={styles.indicatorDelta}>
-                          {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                          indicatorsData?.[1]?.[0]?.[indicator] !== undefined
-                            ? formatValue(
-                                indicatorsData[1][0][indicator] -
-                                  indicatorsData[0][0][indicator]
-                              )
-                            : '-'}
-                        </Text>
-                      </View>
-                      <View style={styles.indicatorBottomSection}>
-                        <Text style={styles.indicatorSubTitle}>Évolution</Text>
-                        <Text style={styles.indicatorEvolution}>
-                          {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
-                          indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
-                          indicatorsData[0][0][indicator] !== 0
-                            ? (
-                                ((indicatorsData[1][0][indicator] -
-                                  indicatorsData[0][0][indicator]) /
-                                  indicatorsData[0][0][indicator]) *
-                                100
-                              ).toFixed(1) + '%'
-                            : '-'}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                </ScrollView>
-
-                {/* Bouton switch pour activer/désactiver la comparaison */}
-                <View style={styles.switchContainer}>
-                  <Switch
-                    style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-                    value={comparaison}
-                    onValueChange={(value) => {
-                      setComparaison(value);
-                      toggleReferenceWithoutClosing(item.ean, value);
-                    }}
-                    ios_backgroundColor="#d3d3d3"
-                    trackColor={{ false: '#e0e0e0', true: '#2B26BF' }}
-                    thumbColor={comparaison ? '#ffffff' : '#ffffff'}
-                  />
-                  <Text style={styles.switchText}>Comparer avec la ref scannée</Text>
-                </View>
-              </View>
+      {selectedListing === 'Ajout manuel' && (
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <View style={styles.referencesSection}>
+            {referencesDataBis[0].length === 0 && (
+              <Text style={styles.modalLabel}>La liste est vide</Text>
             )}
-          </View>
-        )}
-      />
 
-      </View>
+            <FlatList
+              data={referencesDataBis[0]}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
+                <SwipeableItem
+                  item={item}
+                  key={item.ean || Math.random().toString()}
+                  snapPointsLeft={[100]} // Lorsqu'on glisse vers la gauche, on révèle 80px sur la droite
+                  containerStyle={{ overflow: 'visible' }} // Pour que l'underlay soit visible
+                  renderUnderlayLeft={() => (
+                    <View style={styles.underlayContainer}>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={async () => {
+                          await removeEanFromList(barcode, item.ean);
+                          setI((prev) => prev + 1);
+                          // Mettez ici à jour votre état pour rafraîchir la liste, si besoin.
+                        }}
+                      >
+                        <Text style={styles.deleteText}>Supprimer</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                >
+                  <View style={[
+                    styles.referenceItemContainer,
+                    item.ean === barcode && styles.referenceItemContainerBis // style spécial si l'item.ean correspond à barcode
+                  ]}>
+                    {/* Ligne principale de la référence */}
+                    <TouchableOpacity
+                      style={styles.referenceItemHeader}
+                      onPress={() => toggleReference(item.ean)}
+                    >
+                      {/* Conteneur du chevron */}
+                      <View style={styles.chevronContainer}>
+                        <FontAwesome
+                          name={expandedRef === item.ean ? 'chevron-up' : 'chevron-down'}
+                          size={14}
+                          color="#2B26BF"
+                        />
+                      </View>
+
+                      {/* Conteneur de l'indicateur */}
+                      <View style={styles.indicatorContainer}>
+                        <Text style={styles.referenceIndicator}>
+                          {formatValue(item.indicatorValue)}
+                        </Text>
+                      </View>
+
+                      {/* Conteneur du nom de la référence */}
+                      <View style={styles.referenceContainer}>
+                        <Text style={styles.referenceTitle}>{item.reference}</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Contenu extensible */}
+                    {expandedRef === item.ean && (
+                      <View style={styles.expandedContent}>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.indicatorsWrapper}
+                        >
+                          {indicateur.map((indicator, idx) => (
+                            <View key={idx} style={styles.indicatorBox}>
+                              <View style={styles.indicatorTopSection}>
+                                <Text style={styles.indicatorTitle}>{indicator}</Text>
+                                <Text style={styles.indicatorValue}>
+                                  {formatValue(indicatorsData?.[0]?.[0]?.[indicator])}
+                                </Text>
+                              </View>
+                              <View style={styles.indicatorMiddleSection}>
+                                <Text style={styles.indicatorSubTitle}>Écart</Text>
+                                <Text style={styles.indicatorDelta}>
+                                  {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                                  indicatorsData?.[1]?.[0]?.[indicator] !== undefined
+                                    ? formatValue(
+                                        indicatorsData[1][0][indicator] -
+                                        indicatorsData[0][0][indicator]
+                                      )
+                                    : '-'}
+                                </Text>
+                              </View>
+                              <View style={styles.indicatorBottomSection}>
+                                <Text style={styles.indicatorSubTitle}>Évolution</Text>
+                                <Text style={styles.indicatorEvolution}>
+                                  {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                                  indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
+                                  indicatorsData[0][0][indicator] !== 0
+                                    ? (
+                                        ((indicatorsData[1][0][indicator] -
+                                          indicatorsData[0][0][indicator]) /
+                                          indicatorsData[0][0][indicator]) *
+                                        100
+                                      ).toFixed(1) + '%'
+                                    : '-'}
+                                </Text>
+                              </View>
+                            </View>
+                          ))}
+                        </ScrollView>
+
+                        {/* Bouton switch pour activer/désactiver la comparaison */}
+                        <View style={styles.switchContainer}>
+                          <Switch
+                            style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                            value={comparaison}
+                            onValueChange={(value) => {
+                              setComparaison(value);
+                              toggleReferenceWithoutClosing(item.ean, value);
+                            }}
+                            ios_backgroundColor="#d3d3d3"
+                            trackColor={{ false: '#e0e0e0', true: '#2B26BF' }}
+                            thumbColor={comparaison ? '#ffffff' : '#ffffff'}
+                          />
+                          <Text style={styles.switchText}>
+                            Comparer avec la ref scannée
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                </SwipeableItem>
+              )}
+            />
+          </View>
+        </GestureHandlerRootView>
       )}
 
     </SafeAreaView>
     </LinearGradient>
-    
   );
 };
-
 
 const styles = StyleSheet.create({
   /****************************
    *  NOUVEAUX STYLES POUR LA VUE CAMÉRA DANS LE HEADER
    ****************************/
+  underlayContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    
+    alignItems: 'flex-end',
+    backgroundColor: 'transparent',
+    //paddingRight: 0,
+    margin:5,
+  },
   deleteButton: {
     backgroundColor: '#FF3B30',
     justifyContent: 'center',
     alignItems: 'center',
-    width: 80,
-    marginVertical: 5,
+    width: 90,
+    height:'100%',
+    margin: 2,
+    padding:5,
     borderRadius: 10,
   },
   deleteText: {
@@ -1129,6 +1173,12 @@ const styles = StyleSheet.create({
    ****************************/
   referenceItemContainer: {
     backgroundColor: '#e1e1e1',
+    borderRadius: 10,
+    marginBottom: 5,
+    marginHorizontal: 5,
+  },
+  referenceItemContainerBis: {
+    backgroundColor: '#CFD1FF',
     borderRadius: 10,
     marginBottom: 5,
     marginHorizontal: 5,
@@ -1396,10 +1446,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#3A3FD4',
   },
+  dropdownButtonBis: {
+    flex: 1,
+    backgroundColor: '#3A3FD4',
+    borderRadius: 8,
+    marginHorizontal: 4,
+    padding: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#3A3FD4',
+  },
   dropdownText: {
     fontSize: 14,
     fontWeight: 'bold',
     color: '#3A3FD4',
+  },
+  dropdownTextBis: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: 'white',
   },
   referenceData: {
     marginTop: 8,
@@ -1479,6 +1544,10 @@ const styles = StyleSheet.create({
   selectedValue: {
     fontSize: 12,
     color: '#3A3FD4',
+  },
+  selectedValueBis: {
+    fontSize: 12,
+    color: 'white',
   },
   referenceText: { fontSize: 14, color: '#3A3FD4' },
   loadMoreContainer: {
