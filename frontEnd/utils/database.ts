@@ -407,7 +407,7 @@ export const fetchReferencesWithIndicators = async (
         console.error("Erreur lors de la récupération de segmentationValue :", error);
       }
     }
-    console.log("ok1");
+
     // 📌 Construction dynamique des filtres SQL
     let whereConditions = [`${circuitColumn} = ?`, `${periodeColumn} = ?`];
     let queryParams: any[] = [circuitValue, periodeValue];
@@ -424,7 +424,6 @@ export const fetchReferencesWithIndicators = async (
         queryParams.push(numericValue);
       }
     }
-    console.log("ok2");
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     // 🔹 Requête SQL principale avec classement des références
@@ -446,9 +445,8 @@ export const fetchReferencesWithIndicators = async (
     console.log(queryParams,...queryParams.slice(0, -1));
 
     const result1 = await db.getAllAsync(query, queryParams);
-    console.log("ok3");
     const result2 = await db.getAllAsync(query, [...queryParams.slice(0), comparisonPeriodeValue, limit]);
-    console.log("ok4");
+   
     // 🔹 Requête SQL pour récupérer le rang de la référence scannée
     const rankQuery = `
       SELECT rank FROM (
@@ -465,6 +463,127 @@ export const fetchReferencesWithIndicators = async (
     const scannedRank = rankResult.length > 0 ? rankResult[0].rank : null;
 
     return { references: [result1, result2], scannedRank };
+  } catch (error) {
+    console.error('Erreur lors de la récupération des références :', error);
+    return { references: [[], []], scannedRank: null };
+  }
+};
+
+export const fetchListingReferencesWithIndicators = async (
+  eanColumn: string, 
+  sortBy: string, 
+  order: 'Croissant' | 'Décroissant',
+  referenceColumn: string, 
+  circuitColumn: string,
+  periodeColumn: string,
+  circuitValue: string,
+  periodeValue: string,
+  comparisonPeriodeValue: string, 
+  indicators: string[], 
+  limit: number,
+  scannedEan: string,               // Référence scannée pour le calcul du rang
+  eanList: string[],                // Tableau de codes EAN à filtrer (incluant la référence scannée si besoin)
+  segmentationColumn?: string, 
+  advancedFilterIndicator?: string,
+  advancedFilterOperator?: string,
+  advancedFilterValue?: string 
+): Promise<{ references: any[][]; scannedRank: number | null }> => {
+  if (!sortBy || !referenceColumn) return { references: [[], []], scannedRank: null };
+
+  const orderSQL = order === 'Croissant' ? 'ASC' : 'DESC';
+
+  try {
+    const db = await initializeDatabase();
+    
+    // 🔹 Filtrer les codes EAN pour enlever les chaînes vides
+    const filteredEanList = eanList.filter(ean => ean.trim() !== '');
+    console.log("liste EAN filtrée", filteredEanList);
+
+    // Si le tableau filtré est vide, on ne renvoie rien
+    if (filteredEanList.length === 0) {
+      return { references: [[], []], scannedRank: null };
+    }
+    
+    // 🔹 Récupération de la valeur de segmentation pour la référence scannée
+    let segmentationValue: string | null = null;
+    if (segmentationColumn && segmentationColumn !== "Aucun filtre") {
+      const validColumnName = segmentationColumn.replace(/[^a-zA-Z0-9_]/g, ""); // Nettoyage du nom de colonne
+      const segmentationQuery = `
+        SELECT ${validColumnName} AS segmentationValue 
+        FROM data 
+        WHERE ${eanColumn} = ? 
+        LIMIT 1;
+      `;
+      try {
+        const segmentationResult = await db.getAllAsync(segmentationQuery, [scannedEan]);
+        segmentationValue = segmentationResult.length > 0 ? segmentationResult[0].segmentationValue : null;
+      } catch (error) {
+        console.error("Erreur lors de la récupération de segmentationValue :", error);
+      }
+    }
+    
+    // 🔹 Construction dynamique des filtres SQL
+    let whereConditions = [`${circuitColumn} = ?`, `${periodeColumn} = ?`];
+    let queryParams: any[] = [circuitValue, periodeValue];
+
+    // Filtre de segmentation
+    if (segmentationColumn && segmentationValue && segmentationValue !== 'Aucun filtre') {
+      whereConditions.push(`${segmentationColumn} = ?`);
+      queryParams.push(segmentationValue);
+    }
+
+    // Filtre avancé
+    if (advancedFilterIndicator && advancedFilterOperator && advancedFilterValue !== undefined && advancedFilterValue !== '') {
+      const numericValue = parseFloat(advancedFilterValue);
+      if (!isNaN(numericValue)) {
+        whereConditions.push(`CAST(${advancedFilterIndicator} AS NUMERIC) ${advancedFilterOperator} ?`);
+        queryParams.push(numericValue);
+      }
+    }
+
+    // 🔹 Ajout du filtre sur le tableau filtré des codes EAN
+    const placeholders = filteredEanList.map(() => '?').join(', ');
+    whereConditions.push(`${eanColumn} IN (${placeholders})`);
+    queryParams.push(...filteredEanList);
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // 🔹 Requête SQL principale avec classement
+    const query = `
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
+        ${referenceColumn} AS reference, 
+        ${eanColumn} AS ean, 
+        ${sortBy} AS indicatorValue
+      FROM data
+      ${whereClause}
+      ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}
+      LIMIT ?;
+    `;
+    // Ajout du paramètre de limite
+    queryParams.push(limit);
+
+    const result1 = await db.getAllAsync(query, queryParams);
+
+    // 🔹 Requête SQL pour récupérer le rang de la référence scannée
+    const rankQuery = `
+      SELECT rank FROM (
+        SELECT 
+          ROW_NUMBER() OVER (ORDER BY CAST(${sortBy} AS NUMERIC) ${orderSQL}) AS rank,
+          ${eanColumn} AS ean
+        FROM data
+        ${whereClause}
+      ) 
+      WHERE ean = ?;
+    `;
+    // Préparation des paramètres pour le rang (on réutilise ceux de la clause WHERE sans la limite)
+    const rankParams = queryParams.slice(0, queryParams.length - 1);
+    rankParams.push(scannedEan);
+
+    const rankResult = await db.getAllAsync(rankQuery, rankParams);
+    const scannedRank = rankResult.length > 0 ? rankResult[0].rank : null;
+
+    return { references: [result1], scannedRank };
   } catch (error) {
     console.error('Erreur lors de la récupération des références :', error);
     return { references: [[], []], scannedRank: null };
@@ -624,9 +743,6 @@ export const fetchUniqueValuesForThirdFilter = async (
   }
 };
 
-
-
-
 /**
  * fetchUniqueValuesForReferences (3 filtres actifs)
  */
@@ -764,7 +880,6 @@ export const fetchUniqueValuesForReferences = async (
     return [];
   }
 };
-
 
 /**
  * fetchUniqueValuesForReferencesOne (1 filtre actif)
@@ -1042,9 +1157,6 @@ export const fetchUniqueValuesForReferencesTwo = async (
   }
 };
 
-
-
-
 //récupère l'intitulé d'une référence selon son gencode
 export const getIntitule = async (
   EAN: string,
@@ -1069,7 +1181,6 @@ export const getIntitule = async (
     return [];
   }
 };
-
 
 export const fetchColumnsByType = async (): Promise<void> => {
   try {
@@ -1113,3 +1224,21 @@ export const fetchColumnsByType = async (): Promise<void> => {
 fetchColumnsByType().then(() => {
   // Les variables sont initialisées ici
 });
+
+export const getGlobalEanList = async () => {
+
+  try {
+    const db = await initializeDatabase();
+    const query = `
+      SELECT ${codeEAN[0]} AS ean, ${denominationProduit[0]} AS name
+      FROM data
+      GROUP BY ${codeEAN[0]};
+    `;
+    const result = await db.getAllAsync(query, []);
+    return result;
+  } catch (error) {
+    console.error("Erreur lors de la récupération de la liste unique d'EAN :", error);
+    return [];
+  }
+
+};

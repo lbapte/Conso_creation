@@ -122,7 +122,7 @@ export default function TabLayout() {
             title: 'Recherche',
             tabBarIcon: ({ color }) => (
               <View style={styles.indicator}>
-                <Recherche width={30} height={30} fill={color} />
+                <Recherche width={30} height={30} fill={color} style={{ color }}/>
               </View>
             ),
           }}
@@ -133,7 +133,7 @@ export default function TabLayout() {
             title: 'Scan',
             tabBarIcon: ({ color }) => (
               <View style={styles.indicator}>
-                <Logo width={35} height={35} fill={color} />
+                <Logo width={35} height={35} fill={color} style={{ color }}/>
               </View>
             ),
           }}
@@ -144,7 +144,7 @@ export default function TabLayout() {
             title: 'Historique',
             tabBarIcon: ({ color }) => (
               <View style={styles.indicator}>
-                <Historique width={30} height={30} fill={color} />
+                <Historique width={30} height={30} fill={color} style={{ color }}/>
               </View>
             ),
           }}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BlurView } from 'expo-blur';
 import { FontAwesome } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -37,6 +38,7 @@ import {
   createHistoriqueTable
 } from '../../utils/baseHistorique';
 import ModalPage from '../resultat';
+import { getEanData, addEanKey, updateEanData } from '../../utils/EanDataContext';
 
 // Par défaut, on utilise la deuxième valeur de segmentation pour le filtre principal.
 const defaultFilter =
@@ -152,8 +154,6 @@ const SegmentationPage = () => {
   useEffect(() => {
     fetchColumnsByType();
   }, []); 
-
-  console.log(indicateur);
 
   useEffect(() => {
     createHistoriqueTable();
@@ -448,6 +448,10 @@ const SegmentationPage = () => {
     setSelectedEan(ean);
     setRefModalVisible(true);
     insertHistoriqueEntry(reference, ean, 'recherche');
+
+    const eanStr = ean ? String(ean).trim() : "";
+    addEanKey(eanStr);
+
   };
 
   const closeRefModal = () => {

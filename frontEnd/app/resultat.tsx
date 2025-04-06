@@ -1,38 +1,68 @@
 import React, { useState, useEffect } from 'react';
-import {View,Text,StyleSheet,TouchableOpacity,SafeAreaView,ScrollView,FlatList,Modal, TextInput, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform,Switch} from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  SafeAreaView,
+  ScrollView,
+  FlatList,
+  Modal,
+  TextInput,
+  TouchableWithoutFeedback,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Switch
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { fetchDataByDynamicColumns,fetchReferences, fetchFilteredColumnValue,fetchReferencesWithIndicators,codeEAN, circuit, periode, indicateur, valeurPeriodes, valeurcircuit,segmentation,denominationProduit } from '../utils/database';
+import { CameraView, BarcodeScanningResult, CameraType, useCameraPermissions } from 'expo-camera';
+import {
+  fetchDataByDynamicColumns,
+  fetchReferences,
+  fetchFilteredColumnValue,
+  fetchReferencesWithIndicators,
+  fetchListingReferencesWithIndicators,
+  codeEAN,
+  circuit,
+  periode,
+  indicateur,
+  valeurPeriodes,
+  valeurcircuit,
+  segmentation,
+  denominationProduit
+} from '../utils/database';
 import { FontAwesome } from '@expo/vector-icons';
+import { addEanToList, getEanList, initializeHistoricalEanList, removeEanFromList} from '../utils/EanDataContext';
+import SwipeableItem from 'react-native-swipeable-item';
 
 interface ModalPageProps {
   barcode: string; // Code EAN transmis depuis la page Historique
   onClose: () => void; // Fonction pour fermer la modale
 }
 
-const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
-
-  //console.log(indicateur,segmentation);
-
+const AppPage: React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const valeurPeriodesOptions = valeurPeriodes.map((item) => item[periode[0]]);
   const valeurCircuitOptions = valeurcircuit.map((item) => item[circuit[0]]);
-  //console.log(valeurPeriodesOptions,valeurCircuitOptions);
   const [referencesData, setReferencesData] = useState<any[][]>([[], []]);
+  const [referencesDataBis, setReferencesDataBis] = useState<any[][]>([[], []]);
   const [sortBy, setSortBy] = useState<string | null>(indicateur[0]); // Valeur sélectionnée pour "Classer par"
-  const [order, setOrder] = useState<'Croissant' | 'Décroissant'>('Décroissant'); // Valeur pour l'ordre
-  const [filterValue, setFilterValue] = useState<string | null>(segmentation[0]); // Valeur sélectionnée pour "Filtrer"
-  const [expandedRef, setExpandedRef] = useState<number | null>(null); // État pour gérer la référence ouverte
+  const [order, setOrder] = useState<'Croissant' | 'Décroissant'>('Décroissant');
+  const [filterValue, setFilterValue] = useState<string | null>(segmentation[0]);
+  const [expandedRef, setExpandedRef] = useState<number | null>(null);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [currentFilter, setCurrentFilter] = useState<string | null>(null);
   const [selectedPeriode, setSelectedPeriode] = useState<string>(valeurPeriodesOptions[0]);
   const [selectedCircuit, setSelectedCircuit] = useState<string>(valeurCircuitOptions[0]);
   const [selectedComparisonPeriode, setSelectedComparisonPeriode] = useState<string>(valeurPeriodesOptions[1]);
-  const [data, setData] = useState<any[]>([]); // Données récupérées
-  const [ean, setEAN] = useState<string>(barcode); // Exemple de code EAN
+  const [data, setData] = useState<any[]>([]);
+  const [ean, setEAN] = useState<string>(barcode);
   const [modalOptions, setModalOptions] = useState<string[]>([]);
-  const [filteredColumnValue, setFilteredColumnValue] = useState<string | null>(null); // Valeur de la colonne filtrée pour la référence scannée
-  const [indicatorsData, setIndicatorsData] = useState<any[]>([]); 
-  const [visibleReferences, setVisibleReferences] = useState<number>(20); // Commence avec 20 références
-  const [scannedRank, setScannedRank] = useState<number>(0); // Commence avec 20 références
+  const [filteredColumnValue, setFilteredColumnValue] = useState<string | null>(null);
+  const [indicatorsData, setIndicatorsData] = useState<any[]>([]);
+  const [visibleReferences, setVisibleReferences] = useState<number>(20);
+  const [scannedRank, setScannedRank] = useState<number>(0);
+  const [scannedRankBis, setScannedRankBis] = useState<number>(0);
   const [referenceName, setReferenceName] = useState<string>('Chargement...');
   const [advancedFilter, setAdvancedFilter] = useState<{ indicator: string; operator: string; value: string }>({
     indicator: '',
@@ -42,28 +72,56 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   const [isAdvancedFilterEnabled, setIsAdvancedFilterEnabled] = useState(false);
   const [advancedFilterModalVisible, setAdvancedFilterModalVisible] = useState(false);
   const [comparaison, setComparaison] = useState(false);
+  // Pour selectedListing, nous prévoyons trois valeurs : "Liste automatique", "Camera" et "Search"
+  const listing: Array<'Liste automatique' | 'Ajout manuel' > = ['Liste automatique', 'Ajout manuel'];
+  const [selectedListing, setSelectedListing] = useState<string>('Liste automatique');
+  const selection: Array<'Indicateurs' | 'Camera' | 'Search'> = ['Indicateurs', 'Camera', 'Search'];
+  const [selectedSelection, setSelectedSelection] = useState<string>('Indicateurs');
 
-  const [showDetailedIndicators, setShowDetailedIndicators] = useState(true); //gère l'affichage des partie moyennes et basses des indicateurs en header
-  const baseIndicatorHeight = 80; // Hauteur de base pour le titre et la valeur dans la partie header
-  const expandedIndicatorHeight = 140; // Hauteur complète avec détails
-  
-  // Ouvrir la modale du filtre avancé
+  const [showDetailedIndicators, setShowDetailedIndicators] = useState(true);
+  const baseIndicatorHeight = 80;
+  const expandedIndicatorHeight = 140;
+  const [eanListe, setEanListe] = useState<string[]>([]);
+
+  const [permission, requestPermission] = useCameraPermissions();
+
+  // Fonction lancée lorsque la vue caméra détecte un code
+  const handleCameraScan = (result: BarcodeScanningResult) => {
+    
+    const codeUn = barcode ? String(barcode).trim() : "";
+    const codeDeux = result.data ? String(result.data).trim() : "";
+    addEanToList(codeUn,codeDeux);
+    console.log("Code ajouté");
+    // Vous pouvez ajouter ici d'autres actions, par exemple mettre à jour un état ou déclencher une vibration
+  };
+
+  const handleBarcodePress = async (ean: string) => {
+    try {
+      const referenceCode = barcode ? String(barcode).trim() : "";
+      const newBarcode = ean ? String(ean).trim() : "";
+      // Ajoute le nouveau code barre dans la liste associée à la référence scannée
+      await addEanToList(referenceCode, newBarcode);
+      console.log("Code ajouté :", newBarcode);
+      // Vous pouvez ici mettre à jour l'état ou déclencher d'autres actions
+    } catch (error) {
+      console.error("Erreur lors de l'ajout du code EAN :", error);
+    }
+  };
+
+  // --- Fonctions existantes ---
   const openAdvancedFilterModal = () => {
     setAdvancedFilterModalVisible(true);
   };
-  
-  // Sélectionner une valeur pour le filtre avancé
+
   const handleAdvancedFilterSelect = (type: string, value: string) => {
     setAdvancedFilter((prev) => ({ ...prev, [type]: value }));
   };
-  
-  // Appliquer le filtre avancé
+
   const applyAdvancedFilter = () => {
     setIsAdvancedFilterEnabled(true);
     setAdvancedFilterModalVisible(false);
   };
-  
-  // Réinitialiser le filtre avancé
+
   const resetAdvancedFilter = () => {
     setAdvancedFilter({ indicator: '', operator: '', value: '' });
     setIsAdvancedFilterEnabled(false);
@@ -81,53 +139,57 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     if (filterType === 'comparisonPeriode') setModalOptions(valeurPeriodesOptions);
     if (filterType === 'classerPar') setModalOptions(indicateur);
     if (filterType === 'filtrer') setModalOptions(segmentation);
+    if (filterType === 'listing') setModalOptions(listing);
 
     setModalVisible(true);
   };
 
-  // Sélectionner une valeur
   const handleSelect = (value: string) => {
     if (currentFilter === 'periode') setSelectedPeriode(value);
     if (currentFilter === 'circuit') setSelectedCircuit(value);
     if (currentFilter === 'comparisonPeriode') setSelectedComparisonPeriode(value);
     if (currentFilter === 'classerPar') setSortBy(value);
     if (currentFilter === 'filtrer') setFilterValue(value);
+    if (currentFilter === 'listing') setSelectedListing(value);
 
     setModalVisible(false);
   };
 
-    // Fonction pour basculer l'ordre entre "Croissant" et "Décroissant"
-    const toggleOrder = () => {
-      setOrder((prevOrder) => (prevOrder === 'Croissant' ? 'Décroissant' : 'Croissant'));
-    };
+  const toggleOrder = () => {
+    setOrder((prevOrder) => (prevOrder === 'Croissant' ? 'Décroissant' : 'Croissant'));
+  };
 
   const loadData = async () => {
     try {
       const result = await fetchDataByDynamicColumns(
-        { ean, periode: selectedPeriode, periodeComparaison :selectedComparisonPeriode, circuit: selectedCircuit,eanComp :ean,},
+        {
+          ean,
+          periode: selectedPeriode,
+          periodeComparaison: selectedComparisonPeriode,
+          circuit: selectedCircuit,
+          eanComp: ean,
+        },
         { codeEAN, circuit, periode, indicateur }
       );
-      setData(result); // Met à jour les données
+      setData(result);
     } catch (error) {
       console.error('Erreur lors de la récupération des données :', error);
     }
   };
 
   useEffect(() => {
-    loadData(); // Appeler la fonction au chargement ou lors de modifications
-  }, [selectedPeriode, selectedCircuit, selectedComparisonPeriode]); // Dépendances pertinentes
+    loadData();
+  }, [selectedPeriode, selectedCircuit, selectedComparisonPeriode]);
 
   useEffect(() => {
     const loadFilteredColumnValue = async () => {
-      // ✅ Vérifie si le filtre est "Aucun filtre" et stoppe l'exécution
       if (!filterValue || filterValue === "Aucun filtre") {
-        setFilteredColumnValue(null); // Désactive le filtre
+        setFilteredColumnValue(null);
         return;
       }
   
       try {
         const result = await fetchFilteredColumnValue(barcode, filterValue, codeEAN[0]);
-        console.log("Valeur filtrée récupérée :", result); // 🔹 Ajout d'un log pour le debug
         setFilteredColumnValue(result);
       } catch (error) {
         console.error("Erreur lors de la récupération de la valeur filtrée :", error);
@@ -137,30 +199,27 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   
     loadFilteredColumnValue();
   }, [filterValue]);
-  
-
-  //console.log(circuit[0],periode,selectedCircuit,selectedPeriode,);
 
   useEffect(() => {
     const loadReferences = async () => {
       try {
         const result = await fetchReferencesWithIndicators(
-          codeEAN[0], 
-          sortBy, 
-          order, 
-          denominationProduit[0], 
-          circuit[0], 
-          periode[0], 
-          selectedCircuit, 
-          selectedPeriode, 
-          selectedComparisonPeriode, 
-          indicateur, 
-          visibleReferences, 
-          ean, 
-          filterValue || undefined, 
-          advancedFilter.indicator || undefined, 
-          advancedFilter.operator || undefined, 
-          advancedFilter.value !== '' ? advancedFilter.value : undefined // 🔹 Vérification ici
+          codeEAN[0],
+          sortBy,
+          order,
+          denominationProduit[0],
+          circuit[0],
+          periode[0],
+          selectedCircuit,
+          selectedPeriode,
+          selectedComparisonPeriode,
+          indicateur,
+          visibleReferences,
+          ean,
+          filterValue || undefined,
+          advancedFilter.indicator || undefined,
+          advancedFilter.operator || undefined,
+          advancedFilter.value !== '' ? advancedFilter.value : undefined
         );
   
         setReferencesData(result.references);
@@ -172,17 +231,19 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   
     loadReferences();
   }, [
-    sortBy, 
-    order, 
-    selectedCircuit, 
-    selectedPeriode, 
-    selectedComparisonPeriode, 
-    visibleReferences, 
-    advancedFilter, 
-    filterValue 
-  ]);  
+    sortBy,
+    order,
+    selectedCircuit,
+    selectedPeriode,
+    selectedComparisonPeriode,
+    visibleReferences,
+    advancedFilter,
+    filterValue
+  ]);
 
-  const fetchIndicatorsForReference = async (ean: string, eanComp : string, periodeComparaison:string) => {
+  //console.log("refdata sans 0",referencesData);
+
+  const fetchIndicatorsForReference = async (ean: string, eanComp: string, periodeComparaison: string) => {
     try {
       const result = await fetchDataByDynamicColumns(
         {
@@ -194,7 +255,6 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
         },
         { codeEAN, circuit, periode, indicateur }
       );
-
       setIndicatorsData(result);
     } catch (error) {
       console.error('Erreur lors de la récupération des indicateurs :', error);
@@ -207,33 +267,28 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
       setIndicatorsData([]);
     } else {
       setExpandedRef(ean);
-      
-      if(comparaison){
+      if (comparaison) {
         const eanComp = ean;
-        await fetchIndicatorsForReference(ean,eanComp,selectedComparisonPeriode);
+        await fetchIndicatorsForReference(ean, eanComp, selectedComparisonPeriode);
       } else {
         const eanComp = barcode;
-        await fetchIndicatorsForReference(ean,eanComp,selectedPeriode);
+        await fetchIndicatorsForReference(ean, eanComp, selectedPeriode);
       }
     }
   };
 
   const toggleReferenceWithoutClosing = async (ean: string, newComparaison: boolean) => {
-    // Garder le menu déroulant ouvert
     setExpandedRef(ean);
-    
     if (newComparaison) {
-      // Si le switch est activé, utiliser selectedComparisonPeriode et ean pour les deux requêtes
       await fetchIndicatorsForReference(ean, ean, selectedComparisonPeriode);
     } else {
-      // Sinon, utiliser la période principale et le barcode comme comparaison
       await fetchIndicatorsForReference(ean, barcode, selectedPeriode);
     }
   };
 
   const formatValue = (value: any) => {
-    if (value === undefined || value === null || isNaN(Number(value))) return '-'; // Gestion des valeurs non numériques
-    const num = Number(value); // Convertir en nombre pour éviter les erreurs
+    if (value === undefined || value === null || isNaN(Number(value))) return '-';
+    const num = Number(value);
     return Math.abs(num) < 10 ? num.toFixed(1) : Math.round(num).toString();
   };
 
@@ -251,185 +306,317 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
     }
   };
   
-  // Charger la dénomination au montage du composant
+
   useEffect(() => {
     fetchReferenceName();
   }, [barcode]);
+
+  const manualListing = async () => {
+    try {
+      if(selectedListing === "Ajout manuel"){
+      const codStr = barcode ? String(barcode).trim() : "";
+      const donn = await getEanList(codStr);
+      
+      const result = await fetchListingReferencesWithIndicators(
+        codeEAN[0],
+        sortBy,
+        order,
+        denominationProduit[0],
+        circuit[0],
+        periode[0],
+        selectedCircuit,
+        selectedPeriode,
+        selectedComparisonPeriode,
+        indicateur,
+        visibleReferences,
+        ean,
+        donn,
+        filterValue || undefined,
+        advancedFilter.indicator || undefined,
+        advancedFilter.operator || undefined,
+        advancedFilter.value !== '' ? advancedFilter.value : undefined
+      );
+
+      setReferencesDataBis(result.references);
+      setScannedRankBis(result.scannedRank);
+     }
+      
+    } catch (error) {
+      console.error("Erreur lors de la récupération de la dénomination :", error);
+      setReferenceName('Erreur chargement');
+    }
+  };
+
+  useEffect(() => {
+    manualListing();
+  }, [ sortBy,
+    order,
+    selectedCircuit,
+    selectedPeriode,
+    selectedComparisonPeriode,
+    visibleReferences,
+    advancedFilter,
+    filterValue,
+    selectedListing]);
+
+
+  const [facing, setFacing] = useState<CameraType>('back');
+
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchSuggestions, setSearchSuggestions] = useState<any[]>([]);
+    // État pour stocker la liste unique d'EAN et dénominations récupérée via AsyncStorage
+    const [historicalEanList, setHistoricalEanList] = useState<any[]>([]);
   
+    // Initialisation de la liste unique d'EAN lors du montage du composant
+    useEffect(() => {
+      const loadHistoricalData = async () => {
+        const list = await initializeHistoricalEanList();
+        setHistoricalEanList(list);
+      };
+      loadHistoricalData();
+    }, []);
+  
+    // Fonction pour récupérer les suggestions basées sur searchQuery en utilisant historicalEanList
+    const fetchEANSuggestions = async (query: string) => {
+      if (!query) return [];
+      // Utilise historicalEanList à la place des données factices
+      return historicalEanList.filter(item =>
+        item.ean.includes(query) ||
+        item.name.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 3);
+    };
+  
+    // Met à jour les suggestions dès que searchQuery change
+    useEffect(() => {
+      let isActive = true;
+      const loadSuggestions = async () => {
+        const results = await fetchEANSuggestions(searchQuery);
+        if (isActive) setSearchSuggestions(results);
+      };
+      if (searchQuery.length > 0) {
+        loadSuggestions();
+      } else {
+        setSearchSuggestions([]);
+      }
+      return () => { isActive = false; };
+    }, [searchQuery, historicalEanList]);
+
+
+
+    const handleRemoveEan = async (referenceKey: string, eanToRemove: string, refreshList: () => void) => {
+      try {
+        await removeEanFromList(referenceKey, eanToRemove);
+        console.log(`EAN ${eanToRemove} supprimé`);
+        refreshList(); // Vous pouvez déclencher un rafraîchissement de la liste après suppression
+      } catch (error) {
+        console.error("Erreur lors de la suppression de l'EAN:", error);
+      }
+    };
+    
+    // Rendu du bouton de suppression, qui apparaîtra lors du swipe vers la gauche
+    const renderUnderlayRight = (item: any, referenceKey: string, refreshList: () => void) => (
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={() => handleRemoveEan(referenceKey, item.ean, refreshList)}
+      >
+        <Text style={styles.deleteText}>Supprimer</Text>
+      </TouchableOpacity>
+    );
+
+
 
   return (
-     <LinearGradient
-     colors={['#454AD8', '#7579FF', '#F5F5F5']}
-     locations={[0, 0.42, 0.42]} // 40% dégradé, reste F5F5F5
-     start={{ x: 0, y: 0 }}
-     end={{ x: 0, y: 1 }}
-    style={styles.fond}
+    <LinearGradient
+      colors={['#454AD8', '#7579FF', '#F5F5F5']}
+      locations={[0, 0.42, 0.42]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={styles.fond}
     >
-    <SafeAreaView style={styles.safeArea}>
-      {/* Zone 1 : Informations sur la référence scannée */}
-      {/* Bouton Fermer */}
-     
-      <View style={styles.headerSection}>
+      <SafeAreaView style={styles.safeArea}>
+        {/* Header Section */}
+        <View style={styles.headerSection}>
+          {selectedSelection === 'Indicateurs' && (
+            <>
+              {/* En-tête classique */}
+              <View style={styles.headerContainer}>
+                <TouchableOpacity style={styles.closeButtonTop} onPress={onClose}>
+                  <Text style={styles.closeButtonTextTop}>Fermer</Text>
+                </TouchableOpacity>
+                <Text style={styles.referenceTitleWhite}>{referenceName}</Text>
+              </View>
 
-        <View style={styles.headerContainer}>
-            {/* Bouton Fermer */}
-            <TouchableOpacity style={styles.closeButtonTop} onPress={onClose}>
-              <Text style={styles.closeButtonTextTop}>Fermer</Text>
-            </TouchableOpacity>
-
-            {/* Titre de la référence */}
-            <Text style={styles.referenceTitleWhite}>{referenceName}</Text>
-        </View>
-
-        {/* Filtres (Période, Circuit, Période de comparaison) côte à côte */}
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[styles.filterButton, { flex: 1 }]} // 25% pour Période
-            onPress={() => openModal('periode')}
-          >
-            <Text style={styles.filterText}>Période</Text>
-            <Text style={styles.filterValue} numberOfLines={1} ellipsizeMode="tail">
-              {selectedPeriode || 'Choisir'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterButton, { flex: 1 }]} // 25% pour Circuit
-            onPress={() => openModal('circuit')}
-          >
-            <Text style={styles.filterText}>Circuit</Text>
-            <Text style={styles.filterValue} numberOfLines={1} ellipsizeMode="tail">
-              {selectedCircuit || 'Choisir'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterButton, { flex: 2 }]} // 50% pour Période de comparaison
-            onPress={() => openModal('comparisonPeriode')}
-          >
-            <Text style={styles.filterText}>Période de comparaison</Text>
-            <Text style={styles.filterValue} numberOfLines={1} ellipsizeMode="tail">
-              {selectedComparisonPeriode || 'Choisir'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Modale */}
-        <Modal
-          visible={modalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setModalVisible(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Sélectionnez une valeur</Text>
-              <FlatList
-                data={modalOptions}
-                keyExtractor={(item, index) => index.toString()}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.modalOption,
-                      item === selectedPeriode ||
-                      item === selectedCircuit ||
-                      item === selectedComparisonPeriode ||
-                      item === sortBy ||
-                      item === filterValue ||
-                      item === order
-                        ? styles.selectedModalOption
-                        : null,
-                    ]}
-                    onPress={() => handleSelect(item)}
-                  >
-                  <Text
-                    style={[
-                      styles.modalOptionText,
-                      item === selectedPeriode ||
-                      item === selectedCircuit ||
-                      item === selectedComparisonPeriode ||
-                      item === sortBy ||
-                      item === filterValue ||
-                      item === order
-                        ? styles.selectedModalOptionText
-                        : null,
-                    ]}
-                  >
-                    {item}
+              {/* Filtres */}
+              <View style={styles.filterContainer}>
+                <TouchableOpacity
+                  style={[styles.filterButton, { flex: 1 }]}
+                  onPress={() => openModal('periode')}
+                >
+                  <Text style={styles.filterText}>Période</Text>
+                  <Text style={styles.filterValue} numberOfLines={1} ellipsizeMode="tail">
+                    {selectedPeriode || 'Choisir'}
                   </Text>
                 </TouchableOpacity>
-                )}
+
+                <TouchableOpacity
+                  style={[styles.filterButton, { flex: 1 }]}
+                  onPress={() => openModal('circuit')}
+                >
+                  <Text style={styles.filterText}>Circuit</Text>
+                  <Text style={styles.filterValue} numberOfLines={1} ellipsizeMode="tail">
+                    {selectedCircuit || 'Choisir'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.filterButton, { flex: 2 }]}
+                  onPress={() => openModal('comparisonPeriode')}
+                >
+                  <Text style={styles.filterText}>Période de comparaison</Text>
+                  <Text style={styles.filterValue} numberOfLines={1} ellipsizeMode="tail">
+                    {selectedComparisonPeriode || 'Choisir'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Indicateurs */}
+              <View style={styles.indicatorsWrapper}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {indicateur.map((indicator, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.indicatorBox,
+                        { height: showDetailedIndicators ? expandedIndicatorHeight : baseIndicatorHeight },
+                      ]}
+                    >
+                      <View style={styles.indicatorTopSection}>
+                        <Text style={styles.indicatorTitle} numberOfLines={2} ellipsizeMode="tail">
+                          {indicator}
+                        </Text>
+                        <Text style={styles.indicatorValue}>
+                          {data.length > 0 ? Number(data[0][0][indicator]).toFixed(2) || '-' : '-'}
+                        </Text>
+                      </View>
+                      {showDetailedIndicators && (
+                        <View style={styles.indicatorMiddleSection}>
+                          <Text style={styles.indicatorSubTitle}>Écart</Text>
+                          <Text style={styles.indicatorDelta}>
+                            {data?.[0]?.[0]?.[indicator] !== undefined &&
+                            data?.[1]?.[0]?.[indicator] !== undefined
+                              ? (data[1][0][indicator] - data[0][0][indicator]).toFixed(0)
+                              : '-'}
+                          </Text>
+                        </View>
+                      )}
+                      {showDetailedIndicators && (
+                        <View style={styles.indicatorBottomSection}>
+                          <Text style={styles.indicatorSubTitle}>Évolution</Text>
+                          <Text style={styles.indicatorEvolution}>
+                            {data?.[0]?.[0]?.[indicator] !== undefined &&
+                            data?.[1]?.[0]?.[indicator] !== undefined
+                              ? (
+                                  ((data[1][0][indicator] - data[0][0][indicator]) / data[0][0][indicator]) *
+                                  100
+                                ).toFixed(1) + '%'
+                              : '-'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            </>
+          )}
+
+          {selectedSelection === 'Camera' && (
+            <View style={styles.cameraHeaderContainer}>
+              {/* Vue caméra dans le header */}
+              <CameraView
+                style={styles.cameraHeader}
+                onBarcodeScanned={handleCameraScan}
+                facing={facing}
               />
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.closeButtonText}>Fermer</Text>
+              <TouchableOpacity style={styles.switchButton} onPress={() => setSelectedSelection('Indicateurs')}>
+                <Text style={styles.buttonText}>Retour aux indicateurs</Text>
+              </TouchableOpacity>
+            </View>  
+          )}
+
+          {selectedSelection === 'Search' && (
+            <View style={styles.rechercheHeader}>
+              <Text style={styles.referenceTitleWhite}>Ajout manuel</Text>
+              {/* Zone de recherche intégrée directement */}
+              <View style={styles.containerUn}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Rechercher un code barre..."
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchSuggestions.length > 0 && (
+                  <FlatList
+                    data={searchSuggestions}
+                    keyExtractor={(item, index) => index.toString()}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.suggestionItem}
+                        onPress={() => {
+                          handleBarcodePress(item.ean);
+                          setSearchQuery('');
+                          setSearchSuggestions([]);
+                        }}
+                      >
+                        <View style={styles.searchResult}>
+                          <Text style={styles.buttonSubListText}>{item.ean}</Text>
+                          <Text style={styles.buttonListText}>{item.name}</Text>
+                        </View>
+
+                      </TouchableOpacity>
+                    )}
+                    style={styles.suggestionsContainer}
+                  />
+                )}
+              </View>
+              <TouchableOpacity style={styles.switchButton} onPress={() => setSelectedSelection('Indicateurs')}>
+                <Text style={styles.buttonText}>Retour aux indicateurs</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </Modal>
+          )}
 
-
-        {/* Indicateurs */}
-        <View style={styles.indicatorsWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.indicatorsWrapper}>
-          {indicateur.map((indicator, index) => (
-            <View key={index} style={[styles.indicatorBox,{ height: showDetailedIndicators ? expandedIndicatorHeight : baseIndicatorHeight }]}>
-              <View style={styles.indicatorTopSection}>
-                <Text style={styles.indicatorTitle} numberOfLines={2} ellipsizeMode="tail">{indicator}</Text>
-                <Text style={styles.indicatorValue}>
-                  {data.length > 0 ? Number(data[0][0][indicator]).toFixed(2)   || '-' : '-'}
-                </Text>
-              </View>
-              {showDetailedIndicators && (
-              <View style={styles.indicatorMiddleSection}>
-                <Text style={styles.indicatorSubTitle}>Écart</Text>
-                <Text style={styles.indicatorDelta}>
-                  {data?.[0]?.[0]?.[indicator] !== undefined && data?.[1]?.[0]?.[indicator] !== undefined
-                  ? (data[1][0][indicator] - data[0][0][indicator]).toFixed(0).toString()
-                  : '-'}
-                </Text>
-              </View>
-              )}
-              {showDetailedIndicators && (
-              <View style={styles.indicatorBottomSection}>
-                <Text style={styles.indicatorSubTitle}>Évolution</Text>
-                <Text style={styles.indicatorEvolution}>
-                {data?.[0]?.[0]?.[indicator] !== undefined && data?.[1]?.[0]?.[indicator] !== undefined
-                  ? ((data[1][0][indicator] - data[0][0][indicator])/data[0][0][indicator]*100).toFixed(1) + `%`
-                  : '-'}
-                </Text>
-              </View>
-              )}
-            </View>
-          ))}
-        </ScrollView>
-
-        {/*<TouchableOpacity
-          style={styles.toggleDetailsButton}
-          onPress={() => setShowDetailedIndicators(prev => !prev)}
-        >
-          <Text style={styles.toggleDetailsText}>
-            {showDetailedIndicators ? "Afficher moins" : "Afficher plus"}
-          </Text>
-        </TouchableOpacity>
-        */}
         </View>
-      </View>
 
-      {/* Zone 2 : Filtres additionnels */}
+         {/* Zone 2 : Filtres additionnels */}
       {/* Filtres secondaires */}
       
       <View style={styles.filterScrollContainer}>
           {/* Zone 3 : Liste des références */}
          {/* Ligne avec le niveau de ranking de la ref */}
       <View style={styles.rankingContainer}>
+      {selectedListing === 'Liste automatique' ? (
         <Text style={styles.rankingText}>
           {scannedRank 
             ? `Classement sur cet indicateur : ${scannedRank}`
             : "Référence non trouvée dans le classement"}
         </Text>
+      ) : (
+        <View style={styles.buttonsContainer}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => setSelectedSelection('Search')}
+          >
+            <Text style={styles.buttonText}>Ajout manuel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => setSelectedSelection('Camera')}
+          >
+            <Text style={styles.buttonText}>Ajout scan</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.additionalFilters}>
@@ -468,157 +655,167 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
                   : 'Aucun'}
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => openModal('listing')}
+            >
+              <Text style={styles.dropdownText}>Liste</Text>
+              <Text style={styles.selectedValue} numberOfLines={1} ellipsizeMode="tail">{filterValue || 'Choisir'}</Text>
+            </TouchableOpacity>
+            
           </View>
         </ScrollView>
       </View>
 
       {/* Modale */}
       <Modal
-  visible={modalVisible}
-  transparent
-  animationType="slide"
-  onRequestClose={() => setModalVisible(false)}
->
-  <View style={styles.modalContainer}>
-    <View style={styles.modalContent}>
-      <Text style={styles.modalTitle}>Sélectionnez une valeur</Text>
-      <FlatList
-        data={modalOptions}
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item }) => {
-          const isSelected = item === sortBy || item === filterValue;
-
-          return (
-            <TouchableOpacity
-              style={[
-                styles.modalOption,
-                isSelected && styles.selectedModalOption,
-              ]}
-              onPress={() => handleSelect(item)}
-            >
-              <Text
-                style={[
-                  styles.modalOptionText,
-                  isSelected && styles.selectedModalOptionText,
-                ]}
-              >
-                {item}
-              </Text>
-            </TouchableOpacity>
-          );
-        }}
-      />
-      <TouchableOpacity
-        style={styles.closeButton}
-        onPress={() => setModalVisible(false)}
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
       >
-        <Text style={styles.closeButtonText}>Fermer</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Sélectionnez une valeur</Text>
+            <FlatList
+              data={modalOptions}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => {
+                const isSelected = item === sortBy || item === filterValue;
+
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalOption,
+                      isSelected && styles.selectedModalOption,
+                    ]}
+                    onPress={() => handleSelect(item)}
+                  >
+                    <Text
+                      style={[
+                        styles.modalOptionText,
+                        isSelected && styles.selectedModalOptionText,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       <Modal
-  visible={advancedFilterModalVisible}
-  transparent
-  animationType="slide"
-  onRequestClose={() => setAdvancedFilterModalVisible(false)}
->
-  <KeyboardAvoidingView
-    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    style={styles.modalContainer}
-  >
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={styles.modalContent}>
-        
-        {/* Bouton Fermer en haut à gauche */}
-        <TouchableOpacity style={styles.closeButtonTopClearBack} onPress={() => setAdvancedFilterModalVisible(false)}>
-          <Text style={styles.closeButtonText}>Fermer</Text>
-        </TouchableOpacity>
+        visible={advancedFilterModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAdvancedFilterModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalContent}>
+              
+              {/* Bouton Fermer en haut à gauche */}
+              <TouchableOpacity style={styles.closeButtonTopClearBack} onPress={() => setAdvancedFilterModalVisible(false)}>
+                <Text style={styles.closeButtonText}>Fermer</Text>
+              </TouchableOpacity>
 
-        {/* Sélectionner l'indicateur */}
-        <Text style={styles.modalLabel}>Indicateur</Text>
-        <FlatList
-          data={indicateur}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.modalOption,
-                advancedFilter.indicator === item && styles.selectedModalOption,
-              ]}
-              onPress={() => handleAdvancedFilterSelect('indicator', item)}
-            >
-              <Text
-                style={[
-                  styles.modalOptionText,
-                  advancedFilter.indicator === item && styles.selectedModalOptionText,
-                ]}
-              >
-                {item}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
+              {/* Sélectionner l'indicateur */}
+              <Text style={styles.modalLabel}>Indicateur</Text>
+              <FlatList
+                data={indicateur}
+                keyExtractor={(item, index) => index.toString()}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalOption,
+                      advancedFilter.indicator === item && styles.selectedModalOption,
+                    ]}
+                    onPress={() => handleAdvancedFilterSelect('indicator', item)}
+                  >
+                    <Text
+                      style={[
+                        styles.modalOptionText,
+                        advancedFilter.indicator === item && styles.selectedModalOptionText,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
 
-        {/* Sélectionner l'opérateur (en ligne) */}
-        <Text style={styles.modalLabel}>Opérateur</Text>
-        <View style={styles.operatorsContainer}>
-          {['=', '>=', '<=', '>', '<'].map((item) => (
-            <TouchableOpacity
-              key={item}
-              style={[
-                styles.operatorButton,
-                advancedFilter.operator === item && styles.selectedOperator,
-              ]}
-              onPress={() => handleAdvancedFilterSelect('operator', item)}
-            >
-              <Text
-                style={[
-                  styles.operatorText,
-                  advancedFilter.operator === item && styles.selectedOperatorText,
-                ]}
-              >
-                {item}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+              {/* Sélectionner l'opérateur (en ligne) */}
+              <Text style={styles.modalLabel}>Opérateur</Text>
+              <View style={styles.operatorsContainer}>
+                {['=', '>=', '<=', '>', '<'].map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={[
+                      styles.operatorButton,
+                      advancedFilter.operator === item && styles.selectedOperator,
+                    ]}
+                    onPress={() => handleAdvancedFilterSelect('operator', item)}
+                  >
+                    <Text
+                      style={[
+                        styles.operatorText,
+                        advancedFilter.operator === item && styles.selectedOperatorText,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-        {/* Saisie de la valeur */}
-        <Text style={styles.modalLabel}>Valeur</Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="numeric"
-          placeholder="Entrer une valeur"
-          value={advancedFilter.value}
-          onChangeText={(text) => handleAdvancedFilterSelect('value', text)}
-        />
+              {/* Saisie de la valeur */}
+              <Text style={styles.modalLabel}>Valeur</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                placeholder="Entrer une valeur"
+                value={advancedFilter.value}
+                onChangeText={(text) => handleAdvancedFilterSelect('value', text)}
+              />
 
-        {/* Boutons d'action (Appliquer & Réinitialiser bien alignés) */}
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={styles.applyButton} onPress={applyAdvancedFilter}>
-            <Text style={styles.applyButtonText}>Appliquer</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.resetButton} onPress={resetAdvancedFilter}>
-            <Text style={styles.resetButtonText}>Réinitialiser</Text>
-          </TouchableOpacity>
-        </View>
+              {/* Boutons d'action (Appliquer & Réinitialiser bien alignés) */}
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.applyButton} onPress={applyAdvancedFilter}>
+                  <Text style={styles.applyButtonText}>Appliquer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.resetButton} onPress={resetAdvancedFilter}>
+                  <Text style={styles.resetButtonText}>Réinitialiser</Text>
+                </TouchableOpacity>
+              </View>
 
-      </View>
-    </TouchableWithoutFeedback>
-  </KeyboardAvoidingView>
-</Modal>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
 
 
     
           {/* liste de l'ensemble des refs à ouvrir */}
+      {selectedListing === 'Liste automatique' && (
       <View style={styles.referencesSection}>
   
       <FlatList
-  data={referencesData[0]}
-  keyExtractor={(item, index) => index.toString()}
-  renderItem={({ item, index }) => (
+      data={referencesData[0]}
+      keyExtractor={(item, index) => index.toString()}
+      renderItem={({ item, index }) => (
     // 1. Conteneur global de l’item, qui contient
     //    à la fois le bouton ET la partie extensible
     <View style={styles.referenceItemContainer}>
@@ -644,6 +841,7 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
         </View>
 
         {/* Conteneur du nom de la référence */}
+       
         <View style={styles.referenceContainer}>
           <Text style={styles.referenceTitle}>{item.reference}</Text>
         </View>
@@ -719,6 +917,120 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
 
 
       </View>
+      )}
+
+{selectedListing === 'Ajout manuel' && (
+      <View style={styles.referencesSection}>
+      
+      { referencesDataBis[0].length === 0 && (
+        <Text style={styles.modalLabel}>La liste est vide</Text>
+      )}
+  
+      <FlatList
+            data={referencesDataBis[0]}
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={({ item, index }) => (
+          // 1. Conteneur global de l’item, qui contient
+          //    à la fois le bouton ET la partie extensible
+          <View style={styles.referenceItemContainer}>
+            {/* Ligne principale de la référence */}
+            <TouchableOpacity
+              style={styles.referenceItemHeader}
+              onPress={() => toggleReference(item.ean)}
+            >
+              {/* Conteneur du chevron */}
+              <View style={styles.chevronContainer}>
+                <FontAwesome
+                  name={expandedRef === item.ean ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color="#2B26BF"
+                />
+              </View>
+
+              {/* Conteneur de l'indicateur */}
+              <View style={styles.indicatorContainer}>
+                <Text style={styles.referenceIndicator}>
+                  {formatValue(item.indicatorValue)}
+                </Text>
+              </View>
+
+              {/* Conteneur du nom de la référence */}
+            
+              <View style={styles.referenceContainer}>
+                <Text style={styles.referenceTitle}>{item.reference}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* 2. Contenu extensible, dans le même conteneur */}
+            {expandedRef === item.ean && (
+              <View style={styles.expandedContent}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.indicatorsWrapper}
+                >
+                  {indicateur.map((indicator, idx) => (
+                    <View key={idx} style={styles.indicatorBox}>
+                      <View style={styles.indicatorTopSection}>
+                        <Text style={styles.indicatorTitle}>{indicator}</Text>
+                        <Text style={styles.indicatorValue}>
+                          {formatValue(indicatorsData?.[0]?.[0]?.[indicator])}
+                        </Text>
+                      </View>
+                      <View style={styles.indicatorMiddleSection}>
+                        <Text style={styles.indicatorSubTitle}>Écart</Text>
+                        <Text style={styles.indicatorDelta}>
+                          {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                          indicatorsData?.[1]?.[0]?.[indicator] !== undefined
+                            ? formatValue(
+                                indicatorsData[1][0][indicator] -
+                                  indicatorsData[0][0][indicator]
+                              )
+                            : '-'}
+                        </Text>
+                      </View>
+                      <View style={styles.indicatorBottomSection}>
+                        <Text style={styles.indicatorSubTitle}>Évolution</Text>
+                        <Text style={styles.indicatorEvolution}>
+                          {indicatorsData?.[0]?.[0]?.[indicator] !== undefined &&
+                          indicatorsData?.[1]?.[0]?.[indicator] !== undefined &&
+                          indicatorsData[0][0][indicator] !== 0
+                            ? (
+                                ((indicatorsData[1][0][indicator] -
+                                  indicatorsData[0][0][indicator]) /
+                                  indicatorsData[0][0][indicator]) *
+                                100
+                              ).toFixed(1) + '%'
+                            : '-'}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+
+                {/* Bouton switch pour activer/désactiver la comparaison */}
+                <View style={styles.switchContainer}>
+                  <Switch
+                    style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                    value={comparaison}
+                    onValueChange={(value) => {
+                      setComparaison(value);
+                      toggleReferenceWithoutClosing(item.ean, value);
+                    }}
+                    ios_backgroundColor="#d3d3d3"
+                    trackColor={{ false: '#e0e0e0', true: '#2B26BF' }}
+                    thumbColor={comparaison ? '#ffffff' : '#ffffff'}
+                  />
+                  <Text style={styles.switchText}>Comparer avec la ref scannée</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+      />
+
+      </View>
+      )}
 
     </SafeAreaView>
     </LinearGradient>
@@ -726,23 +1038,101 @@ const AppPage : React.FC<ModalPageProps> = ({ barcode, onClose }) => {
   );
 };
 
+
 const styles = StyleSheet.create({
   /****************************
-   *  NOUVEAUX STYLES
+   *  NOUVEAUX STYLES POUR LA VUE CAMÉRA DANS LE HEADER
    ****************************/
-  // Conteneur global : englobe le bouton + contenu étendu
-  referenceItemContainer: {
-    backgroundColor: '#e1e1e1', // remplace le rouge
-    //borderWidth:1,
-    //borderColor:'#f1f1f1',
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    marginVertical: 5,
     borderRadius: 10,
-    marginBottom:5,
-    marginHorizontal:5,
-    //margin: 2, // Espace vertical minimal entre items
-    //padding: 4, // Légère marge interne globale
   },
-
-  // Entête cliquable (ligne principale)
+  deleteText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  searchResult:{
+    display:'flex',
+    flexDirection:'column',
+  },
+  containerUn: {
+    margin: 20
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    borderRadius: 5
+  },
+  suggestionsContainer: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderTopWidth: 0,
+    borderRadius: 5,
+    marginTop: 2
+  },
+  suggestionItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc'
+  },
+  
+  cameraHeaderContainer: {
+    height: 250,
+    backgroundColor: 'black',
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin:10,
+    borderRadius:20,
+    overflow:'hidden',
+  },
+  cameraHeader: {
+    width: '100%',
+    height: '100%',
+  },
+  rechercheHeader:{
+    height: 250,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    //margin:10,
+    //borderRadius:20,
+  },
+  switchButton: {
+    position: 'absolute',
+    bottom: 10,
+    padding: 8,
+    backgroundColor: '#3A3FD4',
+    borderRadius: 8,
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  buttonListText: {
+    fontSize:12,
+    color: 'black',
+    //fontWeight: 'bold',
+  },
+  buttonSubListText: {
+    fontSize:10,
+    color: 'grey',
+    fontWeight: 'bold',
+  },
+  /****************************
+   *  LES AUTRES STYLES EXISTANTS
+   ****************************/
+  referenceItemContainer: {
+    backgroundColor: '#e1e1e1',
+    borderRadius: 10,
+    marginBottom: 5,
+    marginHorizontal: 5,
+  },
   referenceItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -750,20 +1140,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 7,
-    backgroundColor: 'transparent', // plus de fond rouge
+    backgroundColor: 'transparent',
   },
-
-  // Zone étendue (indicateurs + switch) qui apparaît quand expandedRef === item.ean
   expandedContent: {
     marginTop: 6,
-    //paddingHorizontal: 20,
     paddingBottom: 10,
   },
-
-  /****************************
-   *  VOS STYLES EXISTANTS,
-   *  AVEC LE ROUGE SUPPRIMÉ
-   ****************************/
   toggleDetailsButton: {
     paddingHorizontal: 15,
     borderRadius: 8,
@@ -867,7 +1249,6 @@ const styles = StyleSheet.create({
   referenceContainer: {
     flex: 1,
   },
-  // SUPPRIMÉ L'ANCIEN referenceItem : plus besoin de backgroundColor rouge ici
   referenceIndicator: {
     fontSize: 14,
     fontWeight: 'bold',
@@ -877,7 +1258,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#0C0F40',
     flexShrink: 1,
-    fontWeight:'bold',
+    fontWeight: 'bold',
   },
   referenceTitleWhite: {
     fontSize: 14,
@@ -903,9 +1284,9 @@ const styles = StyleSheet.create({
     flex: 1.5,
     backgroundColor: 'transparent',
     borderWidth: 0,
-    borderBottomWidth:0,
-    borderTopLeftRadius:8,
-    borderTopRightRadius:8,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
     borderColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
@@ -991,7 +1372,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginTop: 6,
     marginBottom: 8,
-    backgroundColor: 'transparent', // Retiré le rouge
+    backgroundColor: 'transparent',
   },
   indicatorsContainer: {
     flexDirection: 'row',
@@ -1069,11 +1450,8 @@ const styles = StyleSheet.create({
   referencesSection: {
     flex: 1,
     padding: 0,
-    //borderTopRightRadius:15,
-    //borderTopLeftRadius:15,
     backgroundColor: '#f5f5f5',
-    marginBottom:-50,
-    //paddingTop:20,
+    marginBottom: -50,
   },
   closeButtonTop: {
     padding: 4,
@@ -1159,14 +1537,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal:20,
-    // backgroundColor: 'red', // Retiré si non désiré
   },
   switchText: {
     marginLeft: 10,
     fontSize: 16,
     color: '#333',
   },
+  sectionScan:{
+    flex:1,
+    minHeight:200,
+  },
+  buttonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginVertical: 0,
+    width:'100%',
+  },
+  button: {
+    backgroundColor: '#3A3FD4',
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    marginHorizontal:5,
+    borderRadius: 8,
+  },
 });
-
 
 export default AppPage;
