@@ -30,7 +30,7 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
 
   const handleLogin = async () => {
     try {
-      const response = await axios.post('http://localhost:3000/auth/login', {
+      const response = await axios.post('http://192.168.129.9:3000/auth/login', {
         username,
         password,
       });
@@ -52,9 +52,24 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
     }
   };
 
-  function handleLogout(event: GestureResponderEvent): void {
-    throw new Error('Function not implemented.');
-  }
+  const handleLogout = async (event: GestureResponderEvent) => {
+    try {
+      // Clear the JWT and company name from AsyncStorage
+      await AsyncStorage.removeItem('jwt');
+      await AsyncStorage.removeItem('entreprise');
+
+      // Reset the state variables
+      setJwt('');
+      setCompanyName('');
+      setIsLoggedIn(false);
+
+      // Optionally, show a success message
+      Alert.alert('Success', 'Logout successful');
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'Failed to logout');
+    }
+  };
 
   return (
     <LinearGradient colors={['#454AD8', '#7579FF']} style={styles.gradientBackground}>
