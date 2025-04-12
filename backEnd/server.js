@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config(); // Load environment variables from .env
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
@@ -6,17 +6,19 @@ const bodyParser = require('body-parser');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
 const app = express();
-const secretKey ="6729a6512d71731e04be69259feedd9ee3825b34f053a7dede6bd24960981e03";
+
+// Use environment variable, with a fallback
+const secretKey = process.env.JWT_SECRET || "6729a6512d71731e04be69259feedd9ee3825b34f053a7dede6bd24960981e03";
 
 app.use(bodyParser.json());
 app.use(cors());
 
-// Create a connection pool to the MySQL database
+// Create a connection pool to the MySQL database using .env variables
 const pool = mysql.createPool({
-  host: "localhost",
-  user: "lbapte1",
-  password: "Fh<2Mfs;L@>V",
-  database: "conso_app",
+  host: process.env.DB_HOST || "localhost", // Fallback to "localhost" if not in .env
+  user: process.env.DB_USER || "lbapte1",
+  password: process.env.DB_PASSWORD || "Fh<2Mfs;L@>V",
+  database: process.env.DB_NAME || "conso_app",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0

@@ -1,12 +1,42 @@
 version: "3.8"
 
 services:
-  metro:
-    build: .
-    container_name: metro-bundler
+  backend:
+    build:
+      context: ./backend # Path to your backend Dockerfile
+      dockerfile: Dockerfile # Explicitly specify Dockerfile name (optional if it's just "Dockerfile")
+    image: my-backend:latest #  Explicitly tag the image
     ports:
-      - "8081:8081"
+      - "3000:3000"
+    #environment:
+    #  Backend environment variables here
+    #  NODE_ENV: production #  Good practice to set Node.js environment
+    networks:
+      - app-network
+    restart: unless-stopped # Restart policy
+
+  frontend:
+    build:
+      context: ./frontend # Path to your frontend Dockerfile
+      dockerfile: Dockerfile
+    image: my-frontend:latest # Explicitly tag the image
+    ports:
+      - "8081:8081" #  Frontend port mapping
+    environment:
+      #  Frontend environment variables (e.g., API URL)
+      API_BASE_URL: "http://backend:3000" #  Crucial for connecting to backend
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    restart: unless-stopped
     volumes:
-      - .:/app
-      - /app/node_modules
-    command: ["npm", "start"]
+      - ./frontend:/app # Mount for development, remove in production
+      - node_modules_frontend:/app/node_modules # Named volume for caching
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  node_modules_frontend: # Define the named volume

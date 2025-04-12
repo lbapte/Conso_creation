@@ -7,4 +7,5 @@ COPY . .
 
 EXPOSE 8081
 
+CMD ["npm", "update"]
 CMD ["npm", "start"]
