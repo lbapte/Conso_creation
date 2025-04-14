@@ -7,8 +7,7 @@ frontend:
         - nvm use 20
     build:
       commands:
-        - npm ci  # Use npm ci for faster installs
-        - npm run start  # Use the build command instead of start
+        - npm run start  
   artifacts:
     baseDirectory: build
     files:

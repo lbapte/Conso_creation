@@ -1,49 +1,125 @@
-require('dotenv').config(); // Load environment variables from .env
+require('dotenv').config();
 
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const bodyParser = require('body-parser');
-const mysql = require('mysql2/promise');
 const cors = require('cors');
-const app = express();
+const { CognitoJwtVerifier } = require("aws-jwt-verifier");
+const {
+  CognitoIdentityProviderClient,
+  InitiateAuthCommand,
+  RespondToAuthChallengeCommand,
+  GetUserCommand
+} = require("@aws-sdk/client-cognito-identity-provider");
 
-// Use environment variable, with a fallback
-const secretKey = process.env.JWT_SECRET || "6729a6512d71731e04be69259feedd9ee3825b34f053a7dede6bd24960981e03";
+const app = express();
 
 app.use(bodyParser.json());
 app.use(cors());
 
-// Create a connection pool to the MySQL database using .env variables
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || "localhost", // Fallback to "localhost" if not in .env
-  user: process.env.DB_USER || "lbapte1",
-  password: process.env.DB_PASSWORD || "Fh<2Mfs;L@>V",
-  database: process.env.DB_NAME || "conso_app",
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+const cognitoClient = new CognitoIdentityProviderClient({
+  region: process.env.AWS_REGION, 
 });
+
+const jwtVerifier = CognitoJwtVerifier.create({
+  userPoolId: process.env.AWS_COGNITO_USER_POOL_ID,
+  tokenUse: "access",
+  clientId: process.env.AWS_COGNITO_CLIENT_ID,
+});
+
+
+async function cognitoLogin(username, password) {
+  try {
+    const authResult = await cognitoClient.send(new InitiateAuthCommand({
+      AuthFlow: "USER_PASSWORD_AUTH",
+      ClientId: process.env.AWS_COGNITO_CLIENT_ID,
+      AuthParameters: {
+        USERNAME: username,
+        PASSWORD: password,
+      },
+    }));
+
+    if (authResult.ChallengeName) {
+      if (authResult.ChallengeName === 'MFA_REQUIRED') {
+        throw new Error("Multi-Factor Authentication is required, but not handled in this example.");
+      }
+      const challengeResponse = await cognitoClient.send(
+          new RespondToAuthChallengeCommand({
+            ChallengeName: authResult.ChallengeName,
+            ClientId: process.env.AWS_COGNITO_CLIENT_ID,
+            Session: authResult.Session,
+            ChallengeResponses: {
+                USERNAME: username,
+            }
+          })
+      );
+      if(challengeResponse.AuthenticationResult?.AccessToken){
+        return challengeResponse.AuthenticationResult;
+      }
+      else{
+        throw new Error("Challenge Response failed");
+      }
+
+
+    } else if (authResult.AuthenticationResult) {
+    
+      return authResult.AuthenticationResult;
+    } else {
+      throw new Error("Authentication failed");
+    }
+  } catch (error) {
+    console.error("Cognito Login Error:", error);
+    throw error;
+  }
+}
+
 
 app.post('/auth/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    const [rows] = await pool.execute(
-      'SELECT id, email, entreprise FROM conso_app.users',
-      [username, password]
-    );
+    const authResult = await cognitoLogin(username, password);
+    const accessToken = authResult.AccessToken;
 
-    if (rows.length > 0) {
-      const user = rows[0];
-      const token = jwt.sign({ id: user.id, entreprise: user.entreprise }, secretKey, { expiresIn: '1h' });
-      res.json({ token, entreprise: user.entreprise });
-    } else {
-      res.status(401).json({ message: 'Invalid credentials' });
-    }
+    const userResult = await cognitoClient.send(new GetUserCommand({
+      AccessToken: accessToken,
+    }));
+
+    let companyName = "";
+      if (userResult.UserAttributes) {
+          const companyNameAttribute = userResult.UserAttributes.find(
+              (attr) => attr.Name === "custom:companyName"
+          );
+          companyName = companyNameAttribute ? companyNameAttribute.Value : "";
+      }
+
+    res.json({
+      token: accessToken,
+      entreprise: companyName,
+    });
   } catch (error) {
-    console.error('Error executing query:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(401).json({ message: 'Invalid credentials' });
   }
+});
+
+async function authenticate(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization required' });
+  }
+
+  try {
+    const payload = await jwtVerifier.verify(token);  // Verify the token
+    req.user = payload; // Attach user data to the request
+    next(); //  Go to the next middleware or route handler
+  } catch (error) {
+    console.error("Authentication Error:", error);
+    res.status(401).json({ message: 'Invalid token' });
+  }
+}
+
+app.get('/protected', authenticate, (req, res) => {
+  res.json({ message: 'Protected resource accessed', user: req.user });
 });
 
 const PORT = process.env.PORT || 3000;
