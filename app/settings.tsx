@@ -1,20 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
   TouchableOpacity,
   Text,
   StyleSheet,
-  Dimensions,
   Alert,
-  GestureResponderEvent,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import axios from 'axios';
+import { Auth } from 'aws-amplify';
 import LogoBlanc from '../assets/svg/LogoBlanc.svg';
 
-// Define the type for the onClose prop
 type SettingsScreenProps = {
   onClose: () => void;
 };
@@ -22,50 +19,78 @@ type SettingsScreenProps = {
 export default function SettingsScreen({ onClose }: SettingsScreenProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [jwt, setJwt] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [usernameFocused, setUsernameFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [email, setEmail] = useState(''); // Add state for email during sign-up
+  const [isSignUp, setIsSignUp] = useState(false); // Add state to toggle between sign-in and sign-up
+
+
+  // Check for existing session on component mount
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const user = await Auth.currentAuthenticatedUser();
+        if (user) {
+          setIsLoggedIn(true);
+          //  Get company name from user attributes.  Cognito stores user attributes.
+          const storedCompanyName = await AsyncStorage.getItem('entreprise');
+          setCompanyName(storedCompanyName || ''); //  Use stored value or empty string
+        }
+      } catch (error) {
+        //  Not signed in
+        setIsLoggedIn(false);
+      }
+    };
+    checkSession();
+  }, []);
 
   const handleLogin = async () => {
     try {
-      const response = await axios.post('http://localhost:3000/auth/login', {
-        username,
-        password,
-      });
-
-      const data = response.data;
-      if (data.token) {
-        setJwt(data.token);
-        setCompanyName(data.entreprise);
-        setIsLoggedIn(true);
-        await AsyncStorage.setItem('jwt', data.token);
-        await AsyncStorage.setItem('entreprise', data.entreprise);
-        Alert.alert('Success', 'Login successful');
+      if (isSignUp) {
+        // Handle Sign Up
+        const { user } = await Auth.signUp({
+          username,
+          password,
+          attributes: {
+            email,       //  Make sure to collect email
+            'custom:companyName': companyName,  //  If you have this as a custom attribute
+          },
+        });
+        console.log('Sign up successful:', user);
+        Alert.alert('Success', 'Account created! Please confirm your email.');
+        setIsSignUp(false); // Switch to sign in after successful sign up
       } else {
-        Alert.alert('Error', 'Invalid credentials');
+        // Handle Sign In
+        const user = await Auth.signIn(username, password);
+        console.log('Sign in successful:', user);
+
+        // Get the company name.  This is in the user.attributes
+        const companyNameFromCognito = user.attributes['custom:companyName'] || '';
+        setCompanyName(companyNameFromCognito);
+
+        // Store JWT and company name in AsyncStorage
+        await AsyncStorage.setItem('jwt', user.signInUserSession.accessToken.jwtToken);
+        await AsyncStorage.setItem('entreprise', companyNameFromCognito);
+        setIsLoggedIn(true);
+        Alert.alert('Success', 'Login successful');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      Alert.alert('Error', 'Failed to connect to the server');
+      Alert.alert('Error', error.message || 'Failed to login');
     }
   };
 
-  const handleLogout = async (event: GestureResponderEvent) => {
+  const handleLogout = async () => {
     try {
-      // Clear the JWT and company name from AsyncStorage
+      await Auth.signOut();
       await AsyncStorage.removeItem('jwt');
       await AsyncStorage.removeItem('entreprise');
-
-      // Reset the state variables
-      setJwt('');
-      setCompanyName('');
       setIsLoggedIn(false);
-
-      // Optionally, show a success message
-      Alert.alert('Success', 'Logout successful');
-    } catch (error) {
+      setCompanyName('');
+      Alert.alert('Success', 'Logged out');
+    } catch (error: any) {
       console.error('Logout error:', error);
       Alert.alert('Error', 'Failed to logout');
     }
@@ -91,7 +116,7 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
           </View>
         ) : (
           <View style={styles.loginContainer}>
-            <Text style={styles.title}>Vous n'êtes pas encore connecté</Text>
+            <Text style={styles.title}>{isSignUp ? 'Créer un compte' : "Vous n'êtes pas encore connecté"}</Text>
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
@@ -103,6 +128,17 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
                 onBlur={() => setUsernameFocused(false)}
               />
             </View>
+            {isSignUp && ( //  Show email field only during sign-up
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  placeholderTextColor="#FFFFFF"
+                  value={email}
+                  onChangeText={setEmail}
+                />
+              </View>
+            )}
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
@@ -115,8 +151,24 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
                 onBlur={() => setPasswordFocused(false)}
               />
             </View>
+             {isSignUp && (
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Company Name"
+                  placeholderTextColor="#FFFFFF"
+                  value={companyName}
+                  onChangeText={setCompanyName}
+                />
+              </View>
+            )}
             <TouchableOpacity style={styles.mainButton} onPress={handleLogin}>
-              <Text style={styles.mainButtonText}>S'authentifier</Text>
+              <Text style={styles.mainButtonText}>{isSignUp ? 'S\'inscrire' : 'Se connecter'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
+              <Text style={styles.toggleButtonText}>
+                {isSignUp ? 'Déjà un compte? Se connecter' : 'Créer un compte'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -168,4 +220,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   mainButtonText: { color: '#454AD8', fontSize: 18 },
+  toggleButtonText: { color: '#FFFFFF', fontSize: 16, textDecorationLine: 'underline', marginTop: 10 },
 });

@@ -7,7 +7,7 @@ frontend:
         - nvm use 20
     build:
       commands:
-        - npm run start  
+        - npm run build 
   artifacts:
     baseDirectory: build
     files:

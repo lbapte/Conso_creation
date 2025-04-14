@@ -1,13 +1,13 @@
 {
   "whyContinueWithGen1": "Prefer not to answer",
-  "projectName": "deploymentConsoApp",
+  "projectName": "Consocreation",
   "version": "3.1",
   "frontend": "javascript",
   "javascript": {
-    "framework": "react-native",
+    "framework": "none",
     "config": {
       "SourceDir": "src",
-      "DistributionDir": "/",
+      "DistributionDir": "dist",
       "BuildCommand": "npm run-script build",
       "StartCommand": "npm run-script start"
     }

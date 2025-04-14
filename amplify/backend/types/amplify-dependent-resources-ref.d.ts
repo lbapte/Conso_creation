@@ -1,19 +1,20 @@
 export type AmplifyDependentResourcesAttributes = {
   "api": {
-    "restConso": {
-      "ApiId": "string",
-      "ApiName": "string",
-      "RootUrl": "string"
+    "consocreation": {
+      "GraphQLAPIEndpointOutput": "string",
+      "GraphQLAPIIdOutput": "string",
+      "GraphQLAPIKeyOutput": "string"
     }
   },
-  "function": {
-    "apiBackend01": {
-      "Arn": "string",
-      "CloudWatchEventRule": "string",
-      "LambdaExecutionRole": "string",
-      "LambdaExecutionRoleArn": "string",
-      "Name": "string",
-      "Region": "string"
+  "auth": {
+    "consocreation02f1f85d": {
+      "AppClientID": "string",
+      "AppClientIDWeb": "string",
+      "IdentityPoolId": "string",
+      "IdentityPoolName": "string",
+      "UserPoolArn": "string",
+      "UserPoolId": "string",
+      "UserPoolName": "string"
     }
   }
 }
