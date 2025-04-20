@@ -6,6 +6,7 @@ frontend:
         - npm install
     build:
       commands:
+        - cd ..
         - npm run build
   artifacts:
     baseDirectory: web-build
