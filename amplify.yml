@@ -8,7 +8,6 @@ applications:
             - npm install
         build:
           commands:
-            - cd build
             - npm run build
       artifacts:
         baseDirectory: ./app
