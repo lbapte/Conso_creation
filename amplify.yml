@@ -3,9 +3,11 @@ frontend:
   phases:
     preBuild:
       commands:
+        - cd $REPOSITORY_ROOT
         - npm install
     build:
       commands:
+        - cd $REPOSITORY_ROOT
         - npm run build
   artifacts:
     baseDirectory: web-build
