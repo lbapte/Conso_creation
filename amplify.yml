@@ -6,12 +6,9 @@ frontend:
         - npm install
     build:
       commands:
-        - mkdir build
-        - cd build
-        - npm install
         - npm run build
   artifacts:
-    baseDirectory: build
+    baseDirectory: .
     files:
       - '**/*'
   cache:
