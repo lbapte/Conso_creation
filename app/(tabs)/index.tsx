@@ -1,21 +1,41 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Modal, Animated, Easing,Button,TouchableOpacity, } from 'react-native';
-import { CameraView, BarcodeScanningResult, CameraType, useCameraPermissions } from 'expo-camera';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  Animated,
+  Easing,
+  Button,
+  TouchableOpacity,
+} from "react-native";
+import {
+  CameraView,
+  BarcodeScanningResult,
+  CameraType,
+  useCameraPermissions,
+} from "expo-camera";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import Svg from 'react-native-svg';
-import HD from '../../assets/svg/haut_droit.svg';
-import HG from '../../assets/svg/haut-gauche.svg';
-import BG from '../../assets/svg/bas_gauche.svg';
-import BD from '../../assets/svg/bas_droit.svg';
-import ResultModal from '../resultat';
+import Svg from "react-native-svg";
+import HD from "../../assets/svg/haut_droit.svg";
+import HG from "../../assets/svg/haut-gauche.svg";
+import BG from "../../assets/svg/bas_gauche.svg";
+import BD from "../../assets/svg/bas_droit.svg";
+import ResultModal from "../resultat";
 
-import * as Haptics from 'expo-haptics';
-import {insertHistoriqueEntry} from '../../utils/baseHistorique';
-import {getIntitule,getData,checkForNewData,codeEAN,denominationProduit} from '../../utils/database';
+import * as Haptics from "expo-haptics";
+import { insertHistoriqueEntry } from "../../utils/baseHistorique";
+import {
+  getIntitule,
+  getData,
+  checkForNewData,
+  codeEAN,
+  denominationProduit,
+} from "../../utils/database";
 
 export default function Scanner() {
-  const [facing, setFacing] = useState<CameraType>('back');
+  const [facing, setFacing] = useState<CameraType>("back");
   const [permission, requestPermission] = useCameraPermissions();
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -36,14 +56,14 @@ export default function Scanner() {
 
   const THRESHOLD = 7; // 7 x 100ms = 0,7 s
 
-
   function toggleCameraFacing() {
-    setFacing(current => (current === 'back' ? 'front' : 'back'));
+    setFacing((current) => (current === "back" ? "front" : "back"));
   }
 
   useEffect(() => {
     return () => {
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      if (progressIntervalRef.current)
+        clearInterval(progressIntervalRef.current);
       if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
     };
   }, []);
@@ -73,9 +93,8 @@ export default function Scanner() {
   const handleBarCodeScanned = useCallback(
     ({ data }: BarcodeScanningResult) => {
       if (modalVisible) return; // Ne rien faire si la modale est ouverte
-      
+
       setScannedCode(data);
-      
 
       // Vibration légère dès le début du chargement
       if (progress === 0) {
@@ -89,7 +108,11 @@ export default function Scanner() {
           setProgress((prev) => {
             const newProgress = prev + 1;
             // Vibration intermédiaire (vers 0,4 s)
-            if (newProgress >= 4 && !midHapticTriggeredRef.current && newProgress < THRESHOLD) {
+            if (
+              newProgress >= 4 &&
+              !midHapticTriggeredRef.current &&
+              newProgress < THRESHOLD
+            ) {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               midHapticTriggeredRef.current = true;
             }
@@ -97,8 +120,12 @@ export default function Scanner() {
             if (newProgress >= THRESHOLD) {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               (async () => {
-                const intitule = await getIntitule(data, codeEAN[0], denominationProduit[0]);
-                insertHistoriqueEntry(intitule,data, 'scan');
+                const intitule = await getIntitule(
+                  data,
+                  codeEAN[0],
+                  denominationProduit[0]
+                );
+                insertHistoriqueEntry(intitule, data, "scan");
               })();
               setModalVisible(true);
               if (progressIntervalRef.current) {
@@ -151,19 +178,20 @@ export default function Scanner() {
     // Camera permissions are not granted yet.
     return (
       <View style={styles.container}>
-        <Text style={styles.message}>We need your permission to show the camera</Text>
+        <Text style={styles.message}>
+          We need your permission to show the camera
+        </Text>
         <Button onPress={requestPermission} title="grant permission" />
       </View>
     );
   }
 
   return (
-    
     <SafeAreaView style={styles.container}>
-      
       <CameraView
         style={StyleSheet.absoluteFillObject}
-        onBarcodeScanned={modalVisible ? undefined : handleBarCodeScanned} facing={facing}
+        onBarcodeScanned={modalVisible ? undefined : handleBarCodeScanned}
+        facing={facing}
       />
 
       {/* Indicateurs (crochets) affichés aux positions par défaut
@@ -190,7 +218,7 @@ export default function Scanner() {
             },
           ]}
         >
-          <HG fill={svgColor} width={'40'} height={'40'} />
+          <HG fill={svgColor} width={"40"} height={"40"} />
         </Animated.View>
         <Animated.View
           style={[
@@ -213,7 +241,7 @@ export default function Scanner() {
             },
           ]}
         >
-          <HD fill={svgColor} width={'40'} height={'40'} />
+          <HD fill={svgColor} width={"40"} height={"40"} />
         </Animated.View>
         <Animated.View
           style={[
@@ -236,7 +264,7 @@ export default function Scanner() {
             },
           ]}
         >
-          <BG fill={svgColor} width={'40'} height={'40'} />
+          <BG fill={svgColor} width={"40"} height={"40"} />
         </Animated.View>
         <Animated.View
           style={[
@@ -259,7 +287,7 @@ export default function Scanner() {
             },
           ]}
         >
-          <BD fill={svgColor} width={'40'} height={'40'} />
+          <BD fill={svgColor} width={"40"} height={"40"} />
         </Animated.View>
       </SafeAreaView>
 
@@ -273,54 +301,54 @@ export default function Scanner() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor:'transparent',
+    backgroundColor: "transparent",
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   containerTwo: {
-    backgroundColor:'transparent',
-    position: 'absolute',
-    justifyContent: 'space-between',
-    flexDirection: 'row',
-    padding: '20%',
-    width: '100%',
-    height: '100%',
+    backgroundColor: "transparent",
+    position: "absolute",
+    justifyContent: "space-between",
+    flexDirection: "row",
+    padding: "20%",
+    width: "100%",
+    height: "100%",
   },
   indicator: {
     opacity: 0.8,
-    position: 'absolute',
-    left: '7%',
-    top: '30%',
+    position: "absolute",
+    left: "7%",
+    top: "30%",
     width: 40,
     height: 40,
   },
   indicator2: {
     opacity: 0.8,
-    position: 'absolute',
-    right: '7%',
-    top: '30%',
+    position: "absolute",
+    right: "7%",
+    top: "30%",
     width: 40,
     height: 40,
   },
   indicator3: {
     opacity: 0.8,
-    position: 'absolute',
-    left: '7%',
-    bottom: '30%',
+    position: "absolute",
+    left: "7%",
+    bottom: "30%",
     width: 40,
     height: 40,
   },
   indicator4: {
     opacity: 0.8,
-    position: 'absolute',
-    right: '7%',
-    bottom: '30%',
+    position: "absolute",
+    right: "7%",
+    bottom: "30%",
     width: 40,
     height: 40,
   },
   message: {
-    textAlign: 'center',
+    textAlign: "center",
     paddingBottom: 10,
   },
 });

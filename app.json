@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "YourAppName",
-    "slug": "your-app-slug",
+    "name": "Hooks",
+    "slug": "hooks",
     "scheme": "yourapp",
     "packagerOpts": {
       "sourceExts": [
