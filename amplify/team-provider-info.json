@@ -1,0 +1,20 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-hooksapp-dev-7b720-authRole",
+      "UnauthRoleArn": "arn:aws:iam::296062582553:role/amplify-hooksapp-dev-7b720-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::296062582553:role/amplify-hooksapp-dev-7b720-authRole",
+      "Region": "eu-west-1",
+      "DeploymentBucketName": "amplify-hooksapp-dev-7b720-deployment",
+      "UnauthRoleName": "amplify-hooksapp-dev-7b720-unauthRole",
+      "StackName": "amplify-hooksapp-dev-7b720",
+      "StackId": "arn:aws:cloudformation:eu-west-1:296062582553:stack/amplify-hooksapp-dev-7b720/98a6ffc0-1e9f-11f0-a113-0a0f9b234fc7",
+      "AmplifyAppId": "d293vwooa94ce3"
+    },
+    "categories": {
+      "auth": {
+        "hooksappa46f6888": {}
+      }
+    }
+  }
+}

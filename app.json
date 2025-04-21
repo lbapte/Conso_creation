@@ -29,15 +29,34 @@
             "enableFTS": false,
             "useSQLCipher": false
           },
-          "ios": { 
-            "customBuildFlags": ["-DSQLITE_ENABLE_DBSTAT_VTAB=1 -DSQLITE_ENABLE_SNAPSHOT=1"]
+          "ios": {
+            "customBuildFlags": [
+              "-DSQLITE_ENABLE_DBSTAT_VTAB=1 -DSQLITE_ENABLE_SNAPSHOT=1"
+            ]
           }
         }
       ],
       "expo-font",
       "expo-router"
     ],
-    "newArchEnabled": true
+    "newArchEnabled": true,
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "5ee681cc-fb1c-4426-8044-b4bc5befed58"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.app.hooks",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.app.hooks"
+    }
   },
   "ios": {
     "supportsTablet": true
