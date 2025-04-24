@@ -6,7 +6,8 @@
     "strict": true,
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    "moduleResolution": "node"
   },
   "include": ["**/*.ts", "**/*.tsx"]
 }
