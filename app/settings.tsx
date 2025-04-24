@@ -130,7 +130,6 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
           height={400}
         /> */}
         {/* Exemple avec un Text, à adapter selon votre asset LogoBlanc */}
-        <Text style={styles.backgroundLogo}>Logo</Text>
       </View>
       <View style={styles.header}>
         <TouchableOpacity onPress={onClose} style={styles.backButton}>
@@ -160,7 +159,7 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
                   placeholder={usernameFocused ? "" : "Identifiant (Email)"}
                   placeholderTextColor="#FFFFFF"
                   value={username}
-                  onChangeText={(e) => setUsername(e)} //  Simplifié
+                  onChangeText={(e) => setUsername(e)}
                   onFocus={() => setUsernameFocused(true)}
                   onBlur={() => setUsernameFocused(false)}
                 />
@@ -172,7 +171,7 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
                     placeholder="Email"
                     placeholderTextColor="#FFFFFF"
                     value={email}
-                    onChangeText={(e) => setEmail(e)} // Simplifié
+                    onChangeText={(e) => setEmail(e)}
                   />
                 </View>
               )}
@@ -183,7 +182,7 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
                   placeholder={passwordFocused ? "" : "Mot de passe"}
                   placeholderTextColor="#FFFFFF"
                   value={password}
-                  onChangeText={(e) => setPassword(e)} // Simplifié
+                  onChangeText={(e) => setPassword(e)}
                   onFocus={() => setPasswordFocused(true)}
                   onBlur={() => setPasswordFocused(false)}
                 />
@@ -195,7 +194,7 @@ export default function SettingsScreen({ onClose }: SettingsScreenProps) {
                     placeholder="Company Name"
                     placeholderTextColor="#FFFFFF"
                     value={companyName}
-                    onChangeText={(e) => setCompanyName(e)} // Simplifié
+                    onChangeText={(e) => setCompanyName(e)}
                   />
                 </View>
               )}
@@ -229,16 +228,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: "center",
     alignItems: "center",
-  },
-  backgroundLogo: {
-    position: "absolute",
-    opacity: 0.3,
-    transform: [{ rotate: "-20deg" }, { scale: 1.6 }],
-    // width: 400,  // Ces propriétés ne sont pas directement utilisables dans un StyleSheet React Native
-    // height: 400,
-    color: "#FFFFFF", // Couleur du texte pour le Text de remplacement
-    fontSize: 24,
-    fontWeight: "bold",
   },
   header: { marginTop: 40 },
   backButton: { marginBottom: 20 },
