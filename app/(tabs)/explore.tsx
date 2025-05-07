@@ -154,7 +154,7 @@ const SegmentationPage = () => {
   };
 
   const updateFilters = (column: string) => {
-    if (currentFilterIndex !== null) {
+    if (currentFilterIndex !== null && segmentation.length > 0) {
       const updatedFilters = shiftFilters(
         currentFilterIndex,
         column,
@@ -163,12 +163,16 @@ const SegmentationPage = () => {
       setSelectedFilters(updatedFilters);
       setExpandedItems({});
       setDynamicData({});
+    } else {
+      setSelectedFilters(["Aucun filtre","Aucun filtre","Aucun filtre"]);
     }
     setModalVisible(false);
   };
+  
 
   useEffect(() => {
     fetchColumnsByType();
+    updateFilters(1);
   }, []);
 
   useEffect(() => {
